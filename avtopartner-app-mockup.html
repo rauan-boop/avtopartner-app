@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>АвтоПартнёр — единый мокап</title>
+<style>
+  :root{
+    --bg:#F4F6FB;
+    --card:#FFFFFF;
+    --line:#ECEEF5;
+    --text-hi:#181D33;
+    --text-lo:#8C93A8;
+    --blue1:#16307E;
+    --blue2:#2E56DD;
+    --blue:#2E56DD;
+    --blue-soft:#E8EDFC;
+    --green:#1FAE6B;
+    --green-soft:#E3F8ED;
+    --red:#EF4444;
+    --red-soft:#FDEAEA;
+    --purple:#8B5CF6;
+    --purple-soft:#F1ECFE;
+    --yellow:#F0A83D;
+    --yellow-soft:#FFF3E0;
+    --font:'Inter',-apple-system,sans-serif;
+  }
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{ background:#0B0D17; font-family:var(--font); display:flex; align-items:flex-start; justify-content:center; min-height:100vh; padding:40px 16px;}
+  .stage{ display:flex; flex-direction:column; align-items:center; gap:16px;}
+  .stage-label{ color:#54608f; font-size:11px; letter-spacing:0.1em; text-transform:uppercase; font-weight:700;}
+
+  .phone{ width:390px; height:826px; background:var(--bg); border-radius:44px; border:8px solid #05060c; box-shadow:0 40px 80px -20px rgba(0,0,0,.7); overflow:hidden; position:relative; display:flex; flex-direction:column;}
+  .notch{ position:absolute; top:8px; left:50%; transform:translateX(-50%); width:120px; height:22px; background:#05060c; border-radius:14px; z-index:60;}
+  .statusbar{ padding:18px 26px 4px; display:flex; justify-content:space-between; color:var(--text-hi); font-size:13px; font-weight:700;}
+
+  .screen{ flex:1; overflow-y:auto; padding:4px 18px 100px; scrollbar-width:none;}
+  .screen::-webkit-scrollbar{display:none;}
+
+  .topbar{ display:flex; align-items:flex-start; justify-content:space-between; padding:8px 0 16px;}
+  .greeting-hi{ color:var(--text-hi); font-size:21px; font-weight:800;}
+  .greeting-lo{ color:var(--text-lo); font-size:12.5px; margin-top:4px; max-width:230px;}
+  .page-title{ text-align:center; font-size:17px; font-weight:800; color:var(--text-hi); padding:10px 0 14px; position:relative;}
+  .bell{ position:relative; width:38px; height:38px; border-radius:50%; background:var(--card); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; font-size:16px; cursor:pointer; flex-shrink:0;}
+  .bell .dot{ position:absolute; top:-3px; right:-3px; background:var(--red); color:#fff; font-size:9px; font-weight:800; width:16px; height:16px; border-radius:50%; display:flex; align-items:center; justify-content:center; border:2px solid var(--bg);}
+
+  .avatar{ width:42px; height:42px; border-radius:50%; background:var(--blue2); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:15px; cursor:pointer; flex-shrink:0;}
+
+  /* hero card */
+  .hero{ background:linear-gradient(135deg, var(--blue1), var(--blue2)); border-radius:20px; padding:18px 20px; margin-bottom:12px; position:relative; overflow:hidden; cursor:pointer;}
+  .hero-label{ color:#B9C6F7; font-size:12.5px; font-weight:600;}
+  .hero-num{ color:#fff; font-size:25px; font-weight:800; margin-top:8px;}
+  .hero-delta{ color:#7CE0A8; font-size:11.5px; font-weight:700; margin-top:6px;}
+  .hero-ic{ position:absolute; top:16px; right:16px; width:42px; height:42px; border-radius:50%; background:rgba(255,255,255,.15); display:flex; align-items:center; justify-content:center; color:#fff; font-size:18px;}
+  .hero-bars{ position:absolute; right:0; bottom:0; display:flex; align-items:flex-end; gap:4px; opacity:.18; padding:0 14px 10px 0;}
+  .hero-bars div{ width:6px; background:#fff; border-radius:3px;}
+
+  .row2{ display:flex; gap:10px; margin-bottom:12px;}
+  .mini-card{ flex:1; background:var(--card); border:1px solid var(--line); border-radius:16px; padding:14px; cursor:pointer; transition:transform .15s;}
+  .mini-card:active{ transform:scale(.97);}
+  .mini-top{ display:flex; justify-content:space-between; align-items:flex-start;}
+  .mini-label{ font-size:12px; font-weight:600;}
+  .mini-label.g{ color:var(--green);} .mini-label.r{ color:var(--red);}
+  .mini-num{ font-size:16.5px; font-weight:800; color:var(--text-hi); margin-top:6px;}
+  .mini-delta{ font-size:10.5px; font-weight:600; margin-top:3px;}
+  .mini-icon{ width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:14px;}
+  .mini-icon.g{ background:var(--green-soft); color:var(--green);} .mini-icon.r{ background:var(--red-soft); color:var(--red);}
+
+  .white-card{ background:var(--card); border:1px solid var(--line); border-radius:18px; padding:16px; margin-bottom:14px;}
+  .wc-title{ font-size:13px; color:var(--text-lo); font-weight:600;}
+  .wc-num{ font-size:26px; font-weight:800; color:var(--text-hi); margin-top:4px;}
+  .wc-sub{ font-size:11.5px; color:var(--text-lo); margin-top:1px;}
+  .wc-top{ display:flex; justify-content:space-between; align-items:flex-start;}
+  .wc-icon{ width:38px; height:38px; border-radius:50%; background:var(--blue-soft); color:var(--blue2); display:flex; align-items:center; justify-content:center; font-size:16px;}
+
+  .sec-head{ display:flex; justify-content:space-between; align-items:baseline; margin:16px 0 10px;}
+  .sec-title{ color:var(--text-hi); font-size:15px; font-weight:700;}
+  .sec-link{ color:var(--blue2); font-size:12.5px; font-weight:600; cursor:pointer;}
+
+  .car-row{ display:flex; align-items:center; gap:12px; background:var(--card); border:1px solid var(--line); border-radius:16px; padding:12px 14px; margin-bottom:10px; cursor:pointer; transition:transform .15s;}
+  .car-row:active{ transform:scale(.98);}
+  .car-thumb{ width:46px; height:46px; border-radius:12px; background:var(--blue-soft); display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0;}
+  .car-mid{ flex:1; min-width:0;}
+  .car-name{ font-size:13.5px; font-weight:700; color:var(--text-hi);}
+  .car-plate{ font-size:11.5px; color:var(--text-lo); margin-top:2px;}
+  .car-right{ text-align:right; flex-shrink:0;}
+  .car-amt{ font-size:13.5px; font-weight:700; color:var(--text-hi);}
+  .car-delta{ font-size:11px; font-weight:700; margin-top:3px;}
+  .car-delta.g{ color:var(--green);} .car-delta.r{ color:var(--red);}
+
+  /* segmented control */
+  .segment{ display:flex; background:var(--card); border:1px solid var(--line); border-radius:14px; padding:4px; margin-bottom:14px;}
+  .seg-btn{ flex:1; text-align:center; padding:9px; border-radius:10px; color:var(--text-lo); font-size:13px; font-weight:600; cursor:pointer;}
+  .seg-btn.active{ background:var(--blue2); color:#fff;}
+
+  .chip-row{ display:flex; gap:8px; overflow-x:auto; padding-bottom:4px; margin-bottom:14px; scrollbar-width:none;}
+  .chip-row::-webkit-scrollbar{display:none;}
+  .chip{ flex-shrink:0; background:var(--card); border:1.5px solid var(--line); border-radius:20px; padding:8px 15px; font-size:12.5px; font-weight:600; color:var(--text-lo); cursor:pointer; white-space:nowrap;}
+  .chip.active{ background:var(--blue-soft); border-color:var(--blue2); color:var(--blue2);}
+
+  .date-nav{ display:flex; align-items:center; justify-content:center; gap:14px; margin-bottom:14px; color:var(--text-hi); font-weight:700; font-size:14px;}
+  .date-arrow{ width:26px; height:26px; border-radius:50%; background:var(--card); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--text-lo); font-size:12px;}
+
+  .sum-card{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:15px 16px; display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; cursor:pointer;}
+  .sum-label{ font-size:12px; font-weight:600;}
+  .sum-label.g{color:var(--green);} .sum-label.r{color:var(--red);} .sum-label.b{color:var(--text-lo);}
+  .sum-num{ font-size:19px; font-weight:800; color:var(--text-hi); margin-top:5px;}
+  .sum-delta{ font-size:11px; font-weight:600; margin-top:4px;}
+  .sum-delta.g{color:var(--green);} .sum-delta.r{color:var(--red);}
+  .sum-icon{ width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:16px;}
+  .sum-icon.g{background:var(--green-soft); color:var(--green);} .sum-icon.r{background:var(--red-soft); color:var(--red);} .sum-icon.b{background:var(--blue-soft); color:var(--blue2);}
+
+  .chart-card{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:14px 14px 6px; margin-bottom:14px;}
+  .chart-title{ font-size:13.5px; font-weight:700; color:var(--text-hi); margin-bottom:8px;}
+  .chart-labels{ display:flex; justify-content:space-between; margin-top:4px;}
+  .chart-labels span{ font-size:10px; color:var(--text-lo);}
+
+  .exp-card{ background:var(--card); border:1px solid var(--line); border-radius:14px; padding:13px 15px; margin-bottom:9px; cursor:pointer;}
+  .exp-top{ display:flex; align-items:center; gap:9px; margin-bottom:7px;}
+  .exp-icon{ width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:13px; flex-shrink:0;}
+  .exp-name{ flex:1; font-size:13px; font-weight:600; color:var(--text-hi);}
+  .exp-amt{ font-size:12.5px; font-weight:700; color:var(--text-hi);}
+  .exp-pct{ font-size:11.5px; color:var(--text-lo); margin-left:7px; width:30px; text-align:right;}
+  .exp-bar-bg{ height:5px; background:var(--line); border-radius:6px; overflow:hidden;}
+  .exp-bar-fg{ height:100%; border-radius:6px;}
+
+  .tx-row{ display:flex; align-items:center; gap:11px; background:var(--card); border:1px solid var(--line); border-radius:15px; padding:11px 13px; margin-bottom:9px; cursor:pointer;}
+  .tx-icon{ width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:14px; flex-shrink:0;}
+  .tx-body{ flex:1; min-width:0;}
+  .tx-name{ font-size:13px; font-weight:600; color:var(--text-hi);}
+  .tx-sub{ font-size:11px; color:var(--text-lo); margin-top:2px;}
+  .tx-amt{ font-size:13px; font-weight:700; flex-shrink:0;}
+  .tx-amt.g{ color:var(--green);} .tx-amt.r{ color:var(--red);}
+
+  .cta{ width:100%; background:var(--blue2); color:#fff; border:none; border-radius:14px; padding:13px; font-weight:700; font-size:13.5px; cursor:pointer; margin:6px 0;}
+  .cta.ghost{ background:var(--card); border:1.5px solid var(--line); color:var(--text-hi);}
+
+  .navbar{ position:absolute; bottom:0; left:0; right:0; background:rgba(255,255,255,.95); backdrop-filter:blur(10px); border-top:1px solid var(--line); display:flex; padding:9px 4px 22px;}
+  .navitem{ flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; color:var(--text-lo); font-size:9.5px; font-weight:600; cursor:pointer;}
+  .navitem.active{ color:var(--blue2);}
+  .navicon{ font-size:18px; line-height:1;}
+
+  .search-box{ display:flex; align-items:center; gap:8px; background:var(--card); border:1px solid var(--line); border-radius:14px; padding:11px 14px; margin-bottom:12px; color:var(--text-lo); font-size:13px;}
+
+  .booking-card{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:14px; margin-bottom:12px; cursor:pointer;}
+  .bk-top{ display:flex; align-items:center; gap:10px; margin-bottom:10px;}
+  .bk-name{ font-size:14px; font-weight:700; color:var(--text-hi);}
+  .bk-plate{ font-size:11.5px; color:var(--text-lo); margin-top:2px;}
+  .badge{ display:inline-block; font-size:10px; font-weight:700; padding:4px 10px; border-radius:20px; margin-left:auto;}
+  .badge.active{ background:var(--green-soft); color:var(--green);}
+  .badge.done{ background:#F0F1F6; color:var(--text-lo);}
+  .bk-dates{ display:flex; gap:16px; margin-bottom:10px;}
+  .bk-date{ font-size:11.5px; color:var(--text-lo);}
+  .bk-bottom{ display:flex; justify-content:space-between; align-items:center; padding-top:10px; border-top:1px solid var(--line);}
+  .bk-client{ font-size:12px; color:var(--text-hi); font-weight:600;}
+  .bk-phone{ font-size:11px; color:var(--text-lo); margin-top:2px;}
+  .bk-sum{ text-align:right;}
+  .bk-sum .l{ font-size:10.5px; color:var(--text-lo);}
+  .bk-sum .n{ font-size:14.5px; font-weight:800; color:var(--text-hi);}
+
+  /* car detail full screen */
+  .fullscreen{ position:absolute; inset:0; background:var(--bg); z-index:40; display:none; flex-direction:column;}
+  .fs-topbar{ display:flex; align-items:center; padding:18px 18px 4px; gap:12px;}
+  .fs-back{ width:34px; height:34px; border-radius:50%; background:var(--card); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:15px; color:var(--text-hi);}
+  .fs-title-wrap{ flex:1; text-align:center;}
+  .fs-title{ font-size:15px; font-weight:800; color:var(--text-hi);}
+  .fs-sub{ font-size:11px; color:var(--text-lo); margin-top:1px;}
+  .fs-menu{ width:34px; height:34px; border-radius:50%; background:var(--card); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--text-lo);}
+  .fs-body{ flex:1; overflow-y:auto; padding:14px 18px 100px; scrollbar-width:none;}
+  .fs-body::-webkit-scrollbar{display:none;}
+
+  .car-hero{ background:var(--card); border:1px solid var(--line); border-radius:18px; padding:16px; margin-bottom:14px;}
+  .car-photo{ width:100%; height:110px; background:var(--blue-soft); border-radius:14px; display:flex; align-items:center; justify-content:center; font-size:52px; margin-bottom:14px;}
+  .spec-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px 14px; margin-bottom:14px;}
+  .spec-l{ font-size:10.5px; color:var(--text-lo);}
+  .spec-v{ font-size:13px; font-weight:700; color:var(--text-hi); margin-top:2px;}
+  .fin-row{ display:flex; justify-content:space-between; padding-top:12px; border-top:1px solid var(--line);}
+  .fin-col{ text-align:left;}
+  .fin-l{ font-size:10.5px; font-weight:600;}
+  .fin-l.g{color:var(--green);} .fin-l.r{color:var(--red);} .fin-l.b{color:var(--blue2);}
+  .fin-v{ font-size:14.5px; font-weight:800; color:var(--text-hi); margin-top:3px;}
+  .fin-s{ font-size:9.5px; color:var(--text-lo);}
+
+  .tabbar{ display:flex; border-bottom:1px solid var(--line); margin-bottom:14px;}
+  .tabbtn{ flex:1; text-align:center; padding:10px 4px; font-size:12px; font-weight:600; color:var(--text-lo); cursor:pointer; border-bottom:2px solid transparent;}
+  .tabbtn.active{ color:var(--blue2); border-color:var(--blue2);}
+
+  .filter-line{ display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;}
+  .cal-chip{ display:flex; align-items:center; gap:6px; font-size:12.5px; font-weight:700; color:var(--text-hi); cursor:pointer;}
+  .filter-link{ color:var(--blue2); font-size:12px; font-weight:600; cursor:pointer;}
+
+  .timeline{ position:relative;}
+  .tl-row{ display:flex; gap:12px; margin-bottom:14px; cursor:pointer;}
+  .tl-date{ width:50px; flex-shrink:0; text-align:right;}
+  .tl-date .d{ font-size:11.5px; font-weight:700; color:var(--text-hi);}
+  .tl-date .t{ font-size:10px; color:var(--text-lo);}
+  .tl-rail{ display:flex; flex-direction:column; align-items:center; width:20px; flex-shrink:0;}
+  .tl-dot{ width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; flex-shrink:0;}
+  .tl-line{ width:2px; flex:1; background:var(--line); margin-top:2px;}
+  .tl-body{ flex:1; padding-top:2px;}
+  .tl-title{ font-size:13px; font-weight:700; color:var(--text-hi);}
+  .tl-sub{ font-size:11px; color:var(--text-lo); margin-top:2px;}
+  .tl-amt{ margin-left:auto; font-size:13px; font-weight:800; align-self:flex-start; padding-top:2px;}
+  .tl-amt.g{color:var(--green);} .tl-amt.r{color:var(--red);}
+
+  .info-row{ display:flex; justify-content:space-between; padding:12px 0; border-bottom:1px solid var(--line); font-size:13px;}
+  .info-row .l{ color:var(--text-lo);}
+  .info-row .v{ color:var(--text-hi); font-weight:600; text-align:right;}
+
+  .sheet-overlay{ position:absolute; inset:0; background:rgba(20,25,45,.45); display:flex; align-items:flex-end; z-index:100; opacity:0; pointer-events:none; transition:opacity .25s;}
+  .sheet-overlay.show{ opacity:1; pointer-events:auto;}
+  .sheet{ background:var(--bg); width:100%; border-radius:26px 26px 0 0; padding:22px 20px 34px; max-height:80%; overflow-y:auto; transform:translateY(100%); transition:transform .3s cubic-bezier(.32,.72,0,1);}
+  .sheet-overlay.show .sheet{ transform:translateY(0);}
+  .sheet-handle{ width:36px; height:4px; background:var(--line); border-radius:4px; margin:0 auto 18px;}
+  .close-x{ position:absolute; top:18px; right:18px; width:30px; height:30px; border-radius:50%; background:var(--card); border:1px solid var(--line); color:var(--text-lo); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:15px; z-index:5;}
+
+  .toast{ position:absolute; top:66px; left:50%; transform:translateX(-50%) translateY(-20px); background:var(--text-hi); color:#fff; padding:11px 18px; border-radius:30px; font-size:12.5px; font-weight:600; box-shadow:0 10px 30px rgba(0,0,0,.25); opacity:0; pointer-events:none; transition:all .3s cubic-bezier(.32,.72,0,1); z-index:200; white-space:nowrap; max-width:320px; text-overflow:ellipsis; overflow:hidden;}
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0);}
+
+  .quick-row{ display:flex; align-items:center; gap:12px; padding:13px 0; border-bottom:1px solid var(--line); cursor:pointer;}
+  .quick-row:last-child{ border-bottom:none;}
+  .quick-icon{ width:38px; height:38px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0;}
+  .quick-name{ font-size:13.5px; font-weight:700; color:var(--text-hi);}
+  .quick-sub{ font-size:11px; color:var(--text-lo); margin-top:2px;}
+  .quick-chev{ margin-left:auto; color:var(--text-lo);}
+
+  .donut-wrap{ display:flex; align-items:center; gap:18px; }
+  .donut-legend{ flex:1; display:flex; flex-direction:column; gap:10px;}
+  .leg-item{ display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--text-hi);}
+  .leg-dot{ width:9px; height:9px; border-radius:50%;}
+  .leg-val{ margin-left:auto; font-weight:700; color:var(--text-lo); font-size:12px;}
+
+  .hint{ color:#54608f; font-size:11px; text-align:center; max-width:390px; line-height:1.6;}
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="stage-label">Единый мокап · Приложение владельца автомобиля</div>
+  <div class="phone" id="phone">
+    <div class="notch"></div>
+    <div class="statusbar"><span>9:41</span><span>◉ ◉ ▮▮▮</span></div>
+
+    <!-- ================= ГЛАВНАЯ ================= -->
+    <div class="screen" id="screen-home">
+      <div class="topbar">
+        <div>
+          <div class="greeting-hi">Здравствуйте, Иван!</div>
+          <div class="greeting-lo">Добро пожаловать в панель партнёра</div>
+        </div>
+        <div class="bell" onclick="showToast('3 новых уведомления')">🔔<span class="dot">3</span></div>
+      </div>
+
+      <div class="hero" onclick="switchTab('finance')">
+        <div class="hero-bars"><div style="height:14px"></div><div style="height:22px"></div><div style="height:30px"></div><div style="height:20px"></div></div>
+        <div class="hero-label">Общий приход</div>
+        <div class="hero-num">424 000 ₸</div>
+        <div class="hero-delta">↑ 11% за месяц</div>
+        <div class="hero-ic">₸</div>
+      </div>
+
+      <div class="row2">
+        <div class="mini-card" onclick="switchTab('finance')">
+          <div class="mini-top"><span class="mini-label g">Приход денег</span><span class="mini-icon g">↓</span></div>
+          <div class="mini-num">424 000 ₸</div>
+          <div class="mini-delta" style="color:var(--green)">↑ 11% за месяц</div>
+        </div>
+        <div class="mini-card" onclick="switchTab('finance')">
+          <div class="mini-top"><span class="mini-label r">Расходы</span><span class="mini-icon r">↑</span></div>
+          <div class="mini-num">78 500 ₸</div>
+          <div class="mini-delta" style="color:var(--red)">↑ 6% за месяц</div>
+        </div>
+      </div>
+
+      <div class="white-card">
+        <div class="wc-top">
+          <div><div class="wc-title">Мои автомобили</div><div class="wc-num">2</div><div class="wc-sub">оба в субаренде</div></div>
+          <div class="wc-icon">🚗</div>
+        </div>
+        <svg width="100%" height="80" viewBox="0 0 320 80" style="margin-top:10px;">
+          <path d="M0,55 L40,50 L80,42 L120,45 L160,30 L200,35 L240,25 L280,20 L320,10" fill="none" stroke="#2E56DD" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M0,55 L40,50 L80,42 L120,45 L160,30 L200,35 L240,25 L280,20 L320,10 L320,80 L0,80 Z" fill="#2E56DD" opacity="0.08"/>
+        </svg>
+        <div class="chart-labels"><span>1 мая</span><span>8 мая</span><span>15 мая</span><span>22 мая</span><span>29 мая</span></div>
+      </div>
+
+      <div class="sec-head"><div class="sec-title">Мои автомобили</div><div class="sec-link" onclick="switchTab('cars')">Смотреть все →</div></div>
+
+      <div class="car-row" onclick="openCarDetail('camry','home')">
+        <div class="car-thumb">🚘</div>
+        <div class="car-mid"><div class="car-name">Toyota Camry</div><div class="car-plate">A123BC 777</div></div>
+        <div class="car-right"><div class="car-amt">45 600 ₸</div><div class="car-delta r">↑ 5%</div></div>
+      </div>
+      <div class="car-row" onclick="openCarDetail('rio','home')">
+        <div class="car-thumb">🚙</div>
+        <div class="car-mid"><div class="car-name">Kia Rio</div><div class="car-plate">B456DE 777</div></div>
+        <div class="car-right"><div class="car-amt">32 900 ₸</div><div class="car-delta g">↓ 3%</div></div>
+      </div>
+    </div>
+
+    <!-- ================= АВТОМОБИЛИ / АРЕНДЫ ================= -->
+    <div class="screen" id="screen-cars" style="display:none;">
+      <div class="page-title">Аренды моих машин</div>
+      <div class="search-box">🔍 <span>Поиск по клиенту или автомобилю</span></div>
+      <div class="chip-row">
+        <div class="chip active" onclick="setChip(this)">Все</div>
+        <div class="chip" onclick="setChip(this)">Активные</div>
+        <div class="chip" onclick="setChip(this)">Завершённые</div>
+        <div class="chip" onclick="showToast('Открыты фильтры')">⚙️ Фильтры</div>
+      </div>
+      <div style="font-size:12.5px; color:var(--text-lo); font-weight:700; margin-bottom:10px;">Май 2024</div>
+
+      <div class="booking-card" onclick="openCarDetail('camry','cars')">
+        <div class="bk-top"><div class="car-thumb">🚘</div><div><div class="bk-name">Toyota Camry</div><div class="bk-plate">A123BC 777</div></div><span class="badge active">Активна</span></div>
+        <div class="bk-dates"><span class="bk-date">📅 25.05.2024 10:00</span><span class="bk-date">📅 31.05.2024 10:00</span></div>
+        <div class="bk-bottom"><div><div class="bk-client">Иван Петров</div><div class="bk-phone">+7 999 123-45-67</div></div><div class="bk-sum"><div class="l">Сумма</div><div class="n">25 000 ₸</div></div></div>
+      </div>
+
+      <div class="booking-card" onclick="openCarDetail('rio','cars')">
+        <div class="bk-top"><div class="car-thumb">🚙</div><div><div class="bk-name">Kia Rio</div><div class="bk-plate">B456DE 777</div></div><span class="badge active">Активна</span></div>
+        <div class="bk-dates"><span class="bk-date">📅 27.05.2024 09:00</span><span class="bk-date">📅 02.06.2024 09:00</span></div>
+        <div class="bk-bottom"><div><div class="bk-client">Анна Смирнова</div><div class="bk-phone">+7 987 654-32-10</div></div><div class="bk-sum"><div class="l">Сумма</div><div class="n">18 000 ₸</div></div></div>
+      </div>
+
+      <div class="booking-card" onclick="openCarDetail('camry','cars')">
+        <div class="bk-top"><div class="car-thumb">🚘</div><div><div class="bk-name">Toyota Camry</div><div class="bk-plate">A123BC 777</div></div><span class="badge done">Завершена</span></div>
+        <div class="bk-dates"><span class="bk-date">📅 10.05.2024 09:00</span><span class="bk-date">📅 15.05.2024 09:00</span></div>
+        <div class="bk-bottom"><div><div class="bk-client">Сергей К.</div><div class="bk-phone">+7 701 222-11-00</div></div><div class="bk-sum"><div class="l">Сумма</div><div class="n">15 000 ₸</div></div></div>
+      </div>
+
+      <button class="cta ghost" onclick="showToast('Загружены более ранние аренды')">Показать ещё</button>
+    </div>
+
+    <!-- ================= ФИНАНСЫ ================= -->
+    <div class="screen" id="screen-finance" style="display:none;">
+      <div class="page-title">Финансы</div>
+      <div class="chip-row" id="car-chip-row">
+        <div class="chip active" data-car="all" onclick="selectCar(this,'all')">Все машины</div>
+        <div class="chip" data-car="camry" onclick="selectCar(this,'camry')">Toyota Camry</div>
+        <div class="chip" data-car="rio" onclick="selectCar(this,'rio')">Kia Rio</div>
+      </div>
+      <div class="segment">
+        <div class="seg-btn active" onclick="setSeg(this)">Месяц</div>
+        <div class="seg-btn" onclick="setSeg(this)">Квартал</div>
+        <div class="seg-btn" onclick="setSeg(this)">Год</div>
+      </div>
+      <div class="date-nav">
+        <div class="date-arrow" onclick="showToast('Апрель 2024')">‹</div><span>📅 Май 2024</span><div class="date-arrow" onclick="showToast('Июнь ещё не закрыт')">›</div>
+      </div>
+
+      <div class="sum-card" onclick="showToast('Детализация по операциям дохода')">
+        <div><div class="sum-label g">Доходы</div><div class="sum-num" id="fin-income">424 000 ₸</div><div class="sum-delta g" id="fin-income-delta">↑ 11% к апрелю</div></div>
+        <div class="sum-icon g">↓</div>
+      </div>
+      <div class="sum-card" onclick="showToast('Детализация расходов')">
+        <div><div class="sum-label r">Расходы</div><div class="sum-num" id="fin-expense">78 500 ₸</div><div class="sum-delta r" id="fin-expense-delta">↑ 6% к апрелю</div></div>
+        <div class="sum-icon r">↑</div>
+      </div>
+      <div class="sum-card" onclick="showToast('Прибыль = доходы минус расходы')">
+        <div><div class="sum-label b">Чистая прибыль</div><div class="sum-num" id="fin-profit">345 500 ₸</div><div class="sum-delta g" id="fin-profit-delta">↑ 13% к апрелю</div></div>
+        <div class="sum-icon b">💼</div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-title">Динамика прибыли</div>
+        <svg id="chart-svg" width="100%" height="105" viewBox="0 0 340 105" preserveAspectRatio="none"></svg>
+        <div class="chart-labels"><span>Дек</span><span>Янв</span><span>Фев</span><span>Мар</span><span>Апр</span><span>Май</span></div>
+      </div>
+
+      <div class="sec-head"><div class="sec-title">Структура расходов</div><div class="sec-link" onclick="openExpenseSheet()">Смотреть все</div></div>
+      <div id="expense-list"></div>
+
+      <div class="sec-head"><div class="sec-title">Последние операции</div></div>
+      <div id="tx-list"></div>
+    </div>
+
+    <!-- ================= АНАЛИТИКА ================= -->
+    <div class="screen" id="screen-analytics" style="display:none;">
+      <div class="page-title">Аналитика</div>
+      <div class="segment">
+        <div class="seg-btn active" onclick="setSeg(this)">Месяц</div>
+        <div class="seg-btn" onclick="setSeg(this)">Квартал</div>
+        <div class="seg-btn" onclick="setSeg(this)">Год</div>
+      </div>
+      <div class="date-nav"><div class="date-arrow" onclick="showToast('Апрель 2024')">‹</div><span>📅 Май 2024</span><div class="date-arrow" onclick="showToast('Июнь ещё не закрыт')">›</div></div>
+
+      <div class="row2">
+        <div class="mini-card" style="cursor:default;"><div class="mini-label g">Доход</div><div class="mini-num" style="font-size:15.5px;">424 000 ₸</div><div class="mini-delta" style="color:var(--green)">↑ 11% к апрелю</div></div>
+        <div class="mini-card" style="cursor:default;"><div class="mini-label r">Расходы</div><div class="mini-num" style="font-size:15.5px;">78 500 ₸</div><div class="mini-delta" style="color:var(--red)">↑ 6% к апрелю</div></div>
+      </div>
+      <div class="row2">
+        <div class="mini-card" style="cursor:default;"><div class="mini-label" style="color:var(--blue2)">Прибыль</div><div class="mini-num" style="font-size:15.5px;">345 500 ₸</div><div class="mini-delta" style="color:var(--green)">↑ 13% к апрелю</div></div>
+        <div class="mini-card" style="cursor:default;"><div class="mini-label" style="color:var(--purple)">Рентабельность</div><div class="mini-num" style="font-size:15.5px;">82%</div><div class="mini-delta" style="color:var(--purple)">↑ 4 п.п. к апрелю</div></div>
+      </div>
+
+      <div class="sec-head"><div class="sec-title">Загрузка моих машин</div></div>
+      <div class="white-card">
+        <div class="donut-wrap">
+          <svg width="96" height="96" viewBox="0 0 96 96">
+            <circle cx="48" cy="48" r="38" fill="none" stroke="#ECEEF5" stroke-width="14"/>
+            <circle cx="48" cy="48" r="38" fill="none" stroke="#2E56DD" stroke-width="14" stroke-dasharray="176 238" stroke-dashoffset="0" transform="rotate(-90 48 48)"/>
+            <circle cx="48" cy="48" r="38" fill="none" stroke="#1FAE6B" stroke-width="14" stroke-dasharray="62 238" stroke-dashoffset="-176" transform="rotate(-90 48 48)"/>
+            <text x="48" y="44" text-anchor="middle" font-size="18" font-weight="800" fill="#181D33">46</text>
+            <text x="48" y="59" text-anchor="middle" font-size="9" fill="#8C93A8">авто-дня</text>
+          </svg>
+          <div class="donut-legend">
+            <div class="leg-item"><span class="leg-dot" style="background:var(--blue2)"></span>В аренде<span class="leg-val">46 (74%)</span></div>
+            <div class="leg-item"><span class="leg-dot" style="background:var(--green)"></span>Свободны<span class="leg-val">16 (26%)</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sec-head"><div class="sec-title">Топ автомобилей по доходу</div></div>
+      <div class="car-row" onclick="openCarDetail('camry','analytics')">
+        <div class="car-thumb">🚘</div>
+        <div class="car-mid"><div class="car-name">1 · Toyota Camry</div><div class="car-plate">A123BC 777</div></div>
+        <div class="car-right"><div class="car-amt">245 600 ₸</div><div class="car-delta g">↑ 12%</div></div>
+      </div>
+      <div class="car-row" onclick="openCarDetail('rio','analytics')">
+        <div class="car-thumb">🚙</div>
+        <div class="car-mid"><div class="car-name">2 · Kia Rio</div><div class="car-plate">B456DE 777</div></div>
+        <div class="car-right"><div class="car-amt">178 400 ₸</div><div class="car-delta g">↑ 9%</div></div>
+      </div>
+    </div>
+
+    <!-- ================= ПРОФИЛЬ ================= -->
+    <div class="screen" id="screen-profile" style="display:none;">
+      <div class="topbar">
+        <div class="page-title" style="padding:0; text-align:left;">Профиль</div>
+        <div class="bell" onclick="showToast('3 новых уведомления')">🔔<span class="dot">3</span></div>
+      </div>
+
+      <div class="hero" style="cursor:default;" onclick="showToast('Редактирование профиля')">
+        <div style="display:flex; align-items:center; gap:14px;">
+          <div style="width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:18px;flex-shrink:0;">ИИ</div>
+          <div style="flex:1;">
+            <div style="color:#fff; font-size:16px; font-weight:800;">Иван Иванов</div>
+            <div style="color:#B9C6F7; font-size:12px; margin-top:2px;">Партнёр</div>
+            <div style="color:#DCE4FB; font-size:11.5px; margin-top:6px;">✉️ ivan.ivanov@mail.ru</div>
+            <div style="color:#DCE4FB; font-size:11.5px; margin-top:3px;">📞 +7 777 123-45-67</div>
+          </div>
+          <div style="color:#DCE4FB;">›</div>
+        </div>
+      </div>
+
+      <div class="white-card">
+        <div class="sec-title" style="margin-bottom:10px; font-size:13.5px;">🅿️ Информация о партнёре</div>
+        <div class="info-row"><span class="l">Тип сотрудничества</span><span class="v">Субаренда авто</span></div>
+        <div class="info-row"><span class="l">Автомобилей передано</span><span class="v">2</span></div>
+        <div class="info-row"><span class="l">Дата подключения</span><span class="v">15.03.2023</span></div>
+        <div class="info-row" style="border-bottom:none;"><span class="l">Условия распределения</span><span class="v">70% / 30%</span></div>
+      </div>
+
+      <div class="white-card">
+        <div class="sec-title" style="margin-bottom:2px; font-size:13.5px;">⚡ Быстрые действия</div>
+        <div class="quick-row" onclick="showToast('Открыты реквизиты и документы')">
+          <div class="quick-icon" style="background:var(--green-soft);">📄</div>
+          <div><div class="quick-name">Мои реквизиты</div><div class="quick-sub">Банковские реквизиты и документы</div></div>
+          <div class="quick-chev">›</div>
+        </div>
+        <div class="quick-row" onclick="showToast('Открыты договоры субаренды')">
+          <div class="quick-icon" style="background:var(--blue-soft);">🗂️</div>
+          <div><div class="quick-name">Договоры субаренды</div><div class="quick-sub">2 активных договора</div></div>
+          <div class="quick-chev">›</div>
+        </div>
+        <div class="quick-row" onclick="showToast('Открыта безопасность аккаунта')">
+          <div class="quick-icon" style="background:var(--purple-soft);">🛡️</div>
+          <div><div class="quick-name">Безопасность</div><div class="quick-sub">Смена пароля и вход по биометрии</div></div>
+          <div class="quick-chev">›</div>
+        </div>
+        <div class="quick-row" onclick="showToast('Открыты настройки уведомлений')">
+          <div class="quick-icon" style="background:var(--yellow-soft);">🔔</div>
+          <div><div class="quick-name">Уведомления</div><div class="quick-sub">Настройка уведомлений</div></div>
+          <div class="quick-chev">›</div>
+        </div>
+        <div class="quick-row" onclick="showToast('О компании ТОО «АвтоПрокат»')">
+          <div class="quick-icon" style="background:#EFEFF4;">🏢</div>
+          <div><div class="quick-name">О компании</div><div class="quick-sub">ТОО «АвтоПрокат»</div></div>
+          <div class="quick-chev">›</div>
+        </div>
+        <div class="quick-row" onclick="showToast('Открыта поддержка')">
+          <div class="quick-icon" style="background:var(--blue-soft);">🎧</div>
+          <div><div class="quick-name">Поддержка</div><div class="quick-sub">Связаться с поддержкой</div></div>
+          <div class="quick-chev">›</div>
+        </div>
+      </div>
+
+      <button class="cta ghost" style="color:var(--red); border-color:#FBD9DA;" onclick="showToast('Выход выполнен')">⬅ Выйти из аккаунта</button>
+    </div>
+
+    <!-- ================= NAVBAR ================= -->
+    <div class="navbar">
+      <div class="navitem active" id="nav-home" onclick="switchTab('home')"><div class="navicon">⌂</div><div>Главная</div></div>
+      <div class="navitem" id="nav-cars" onclick="switchTab('cars')"><div class="navicon">🚗</div><div>Автомобили</div></div>
+      <div class="navitem" id="nav-finance" onclick="switchTab('finance')"><div class="navicon">₸</div><div>Финансы</div></div>
+      <div class="navitem" id="nav-analytics" onclick="switchTab('analytics')"><div class="navicon">📊</div><div>Аналитика</div></div>
+      <div class="navitem" id="nav-profile" onclick="switchTab('profile')"><div class="navicon">◎</div><div>Профиль</div></div>
+    </div>
+
+    <!-- ================= CAR DETAIL (fullscreen push) ================= -->
+    <div class="fullscreen" id="fs-cardetail">
+      <div class="fs-topbar">
+        <div class="fs-back" onclick="closeCarDetail()">←</div>
+        <div class="fs-title-wrap"><div class="fs-title" id="cd-name">Toyota Camry</div><div class="fs-sub" id="cd-plate">A123BC 777</div></div>
+        <div class="fs-menu" onclick="showToast('Меню: редактировать, история, удалить')">⋮</div>
+      </div>
+      <div class="fs-body">
+        <div class="car-hero">
+          <div class="car-photo" id="cd-photo">🚘</div>
+          <div class="spec-grid">
+            <div><div class="spec-l">Год выпуска</div><div class="spec-v" id="cd-year">2021</div></div>
+            <div><div class="spec-l">Цвет</div><div class="spec-v" id="cd-color">Чёрный</div></div>
+            <div><div class="spec-l">Статус</div><div class="spec-v"><span class="badge active" id="cd-status">Активен</span></div></div>
+            <div><div class="spec-l">Пробег</div><div class="spec-v" id="cd-mileage">68 500 км</div></div>
+          </div>
+          <div class="fin-row">
+            <div class="fin-col"><div class="fin-l g">Доход</div><div class="fin-v" id="cd-income">245 600 ₸</div><div class="fin-s">за май</div></div>
+            <div class="fin-col"><div class="fin-l r">Расходы</div><div class="fin-v" id="cd-expense">45 600 ₸</div><div class="fin-s">за май</div></div>
+            <div class="fin-col"><div class="fin-l b">Прибыль</div><div class="fin-v" id="cd-profit">200 000 ₸</div><div class="fin-s">за май</div></div>
+          </div>
+        </div>
+
+        <div class="tabbar" id="cd-tabbar">
+          <div class="tabbtn active" data-t="all" onclick="setCdTab(this,'all')">Действия</div>
+          <div class="tabbtn" data-t="expense" onclick="setCdTab(this,'expense')">Расходы</div>
+          <div class="tabbtn" data-t="income" onclick="setCdTab(this,'income')">Доходы</div>
+          <div class="tabbtn" data-t="info" onclick="setCdTab(this,'info')">Информация</div>
+        </div>
+
+        <div id="cd-filter-line" class="filter-line">
+          <div class="cal-chip" onclick="showToast('Выбор месяца')">📅 Май 2024 ▾</div>
+          <div class="filter-link" onclick="showToast('Открыты фильтры')">☰ Фильтры</div>
+        </div>
+
+        <div id="cd-content"></div>
+      </div>
+    </div>
+
+    <div class="sheet-overlay" id="sheet-overlay" onclick="closeSheetOnOverlay(event)">
+      <div class="sheet" id="sheet-content"></div>
+    </div>
+    <div class="toast" id="toast"></div>
+  </div>
+  <div class="hint">Кликабельный мокап по вашим эскизам: низ — 5 вкладок, карточки машин открывают карточку авто<br>с действиями/расходами/доходами/информацией, «Финансы» переключаются по машинам.</div>
+</div>
+
+<script>
+const CARS = {
+  camry:{
+    name:'Toyota Camry', plate:'A123BC 777', photo:'🚘', year:'2021', color:'Чёрный', mileage:'68 500 км', status:'Активен', statusClass:'active',
+    income:245600, expense:45600, profit:200000,
+    incomeDelta:'↑ 10% к апрелю', expenseDelta:'↑ 5% к апрелю', profitDelta:'↑ 12% к апрелю',
+    chart:[120000,150000,165000,180000,190000,200000],
+    expenses:[
+      {name:'Топливо', amt:21000, pct:46, color:'var(--blue2)', icon:'⛽', bg:'var(--blue-soft)'},
+      {name:'ТО и ремонт', amt:15500, pct:34, color:'var(--purple)', icon:'🔧', bg:'var(--purple-soft)'},
+      {name:'Мойка и уход', amt:5100, pct:11, color:'var(--yellow)', icon:'🧼', bg:'var(--yellow-soft)'},
+    ],
+    extraExpenses:[{name:'Шиномонтаж', amt:4000, pct:9}],
+    tx:[
+      {date:'29 мая',time:'14:30',type:'income',icon:'₸',bg:'var(--green-soft)',color:'var(--green)',title:'Поступление от аренды',sub:'Аренда партнёром: Иван П.',amt:12500},
+      {date:'27 мая',time:'09:15',type:'expense',icon:'⛽',bg:'var(--red-soft)',color:'var(--red)',title:'Заправка',sub:'Роснефть, АИ-95, 40 л',amt:2800},
+      {date:'25 мая',time:'11:40',type:'expense',icon:'🔧',bg:'var(--red-soft)',color:'var(--red)',title:'ТО',sub:'Замена масла и фильтров',amt:6500},
+      {date:'22 мая',time:'16:20',type:'income',icon:'₸',bg:'var(--green-soft)',color:'var(--green)',title:'Поступление от аренды',sub:'Аренда партнёром: Сергей К.',amt:12000},
+      {date:'20 мая',time:'10:05',type:'expense',icon:'🧼',bg:'var(--red-soft)',color:'var(--red)',title:'Мойка',sub:'Мойка кузова и салона',amt:800},
+      {date:'18 мая',time:'13:50',type:'income',icon:'₸',bg:'var(--green-soft)',color:'var(--green)',title:'Поступление от аренды',sub:'Аренда партнёром: Иван П.',amt:11500},
+      {date:'15 мая',time:'09:00',type:'expense',icon:'🛞',bg:'var(--red-soft)',color:'var(--red)',title:'Шиномонтаж',sub:'Замена 2 колёс',amt:4000},
+      {date:'12 мая',time:'15:30',type:'income',icon:'₸',bg:'var(--green-soft)',color:'var(--green)',title:'Поступление от аренды',sub:'Аренда партнёром: Алексей С.',amt:11000},
+    ],
+    info:[
+      {l:'VIN', v:'JT2BF12K...4X019'},
+      {l:'Дата начала субаренды', v:'12.01.2024'},
+      {l:'Комиссия компании', v:'30%'},
+      {l:'Ответственный менеджер', v:'Дамир С.'},
+    ]
+  },
+  rio:{
+    name:'Kia Rio', plate:'B456DE 777', photo:'🚙', year:'2022', color:'Белый', mileage:'34 200 км', status:'В аренде', statusClass:'active',
+    income:178400, expense:32900, profit:145500,
+    incomeDelta:'↑ 14% к апрелю', expenseDelta:'↑ 6% к апрелю', profitDelta:'↑ 18% к апрелю',
+    chart:[70000,95000,110000,120000,135000,145500],
+    expenses:[
+      {name:'Топливо', amt:15000, pct:46, color:'var(--blue2)', icon:'⛽', bg:'var(--blue-soft)'},
+      {name:'ТО и ремонт', amt:10500, pct:32, color:'var(--purple)', icon:'🔧', bg:'var(--purple-soft)'},
+      {name:'Мойка и уход', amt:4400, pct:13, color:'var(--yellow)', icon:'🧼', bg:'var(--yellow-soft)'},
+    ],
+    extraExpenses:[{name:'Шиномонтаж', amt:3000, pct:9}],
+    tx:[
+      {date:'28 мая',time:'12:10',type:'income',icon:'₸',bg:'var(--green-soft)',color:'var(--green)',title:'Поступление от аренды',sub:'Аренда партнёром: Анна С.',amt:9500},
+      {date:'26 мая',time:'08:40',type:'expense',icon:'⛽',bg:'var(--red-soft)',color:'var(--red)',title:'Заправка',sub:'KMG, АИ-92, 35 л',amt:2100},
+      {date:'21 мая',time:'10:00',type:'expense',icon:'🔧',bg:'var(--red-soft)',color:'var(--red)',title:'ТО',sub:'Плановое обслуживание',amt:8000},
+      {date:'19 мая',time:'09:30',type:'income',icon:'₸',bg:'var(--green-soft)',color:'var(--green)',title:'Поступление от аренды',sub:'Аренда партнёром: Данияр Т.',amt:8800},
+      {date:'14 мая',time:'17:00',type:'expense',icon:'🧼',bg:'var(--red-soft)',color:'var(--red)',title:'Мойка',sub:'Комплексная мойка',amt:900},
+      {date:'9 мая',time:'11:15',type:'income',icon:'₸',bg:'var(--green-soft)',color:'var(--green)',title:'Поступление от аренды',sub:'Аренда партнёром: Анна С.',amt:9000},
+    ],
+    info:[
+      {l:'VIN', v:'KNAB4515...7C221'},
+      {l:'Дата начала субаренды', v:'03.03.2024'},
+      {l:'Комиссия компании', v:'30%'},
+      {l:'Ответственный менеджер', v:'Дамир С.'},
+    ]
+  }
+};
+CARS.all = {
+  name:'Все машины', plate:'', 
+  income:424000, expense:78500, profit:345500,
+  incomeDelta:'↑ 11% к апрелю', expenseDelta:'↑ 6% к апрелю', profitDelta:'↑ 13% к апрелю',
+  chart:[190000,245000,275000,300000,325000,345500],
+  expenses:[
+    {name:'Топливо', amt:36000, pct:46, color:'var(--blue2)', icon:'⛽', bg:'var(--blue-soft)'},
+    {name:'ТО и ремонт', amt:26000, pct:33, color:'var(--purple)', icon:'🔧', bg:'var(--purple-soft)'},
+    {name:'Мойка и уход', amt:9500, pct:12, color:'var(--yellow)', icon:'🧼', bg:'var(--yellow-soft)'},
+  ],
+  extraExpenses:[{name:'Шиномонтаж', amt:7000, pct:9}],
+  tx:[...CARS.camry.tx.slice(0,3), ...CARS.rio.tx.slice(0,3)]
+};
+
+function fmt(n){ return n.toLocaleString('ru-RU') + ' ₸'; }
+
+function switchTab(tab){
+  ['home','cars','finance','analytics','profile'].forEach(t=>{
+    document.getElementById('screen-'+t).style.display = (t===tab)?'block':'none';
+    document.getElementById('nav-'+t).classList.toggle('active', t===tab);
+  });
+  document.getElementById('screen-'+tab).scrollTop = 0;
+  if(tab==='finance') renderFinance(document.querySelector('#car-chip-row .chip.active')?.dataset.car || 'all');
+}
+
+function setChip(el){ el.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active')); el.classList.add('active'); showToast('Список отфильтрован'); }
+function setSeg(el){ el.parentElement.querySelectorAll('.seg-btn').forEach(c=>c.classList.remove('active')); el.classList.add('active'); showToast('Период: '+el.textContent); }
+function selectCar(el,key){ document.querySelectorAll('#car-chip-row .chip').forEach(c=>c.classList.remove('active')); el.classList.add('active'); renderFinance(key); }
+
+function renderFinance(key){
+  const d = CARS[key];
+  document.getElementById('fin-income').textContent = fmt(d.income);
+  document.getElementById('fin-expense').textContent = fmt(d.expense);
+  document.getElementById('fin-profit').textContent = fmt(d.profit);
+  document.getElementById('fin-income-delta').textContent = d.incomeDelta;
+  document.getElementById('fin-expense-delta').textContent = d.expenseDelta;
+  document.getElementById('fin-profit-delta').textContent = d.profitDelta;
+  drawChart('chart-svg', d.chart, 340, 105);
+
+  document.getElementById('expense-list').innerHTML = d.expenses.map(e=>`
+    <div class="exp-card" onclick="showToast('${e.name}: ${fmt(e.amt)}')">
+      <div class="exp-top"><div class="exp-icon" style="background:${e.bg}">${e.icon}</div><div class="exp-name">${e.name}</div><div class="exp-amt">${fmt(e.amt)}</div><div class="exp-pct">${e.pct}%</div></div>
+      <div class="exp-bar-bg"><div class="exp-bar-fg" style="width:${e.pct}%;background:${e.color};"></div></div>
+    </div>`).join('');
+
+  document.getElementById('tx-list').innerHTML = d.tx.slice(0,5).map(t=>`
+    <div class="tx-row" onclick="showToast('${t.title}: ${t.type==='income'?'+':'-'}${fmt(t.amt)}')">
+      <div class="tx-icon" style="background:${t.bg}; color:${t.color};">${t.icon}</div>
+      <div class="tx-body"><div class="tx-name">${t.title}</div><div class="tx-sub">${t.sub}</div></div>
+      <div class="tx-amt ${t.type==='income'?'g':'r'}">${t.type==='income'?'+':'−'}${fmt(t.amt)}</div>
+    </div>`).join('');
+}
+
+function drawChart(id, points, w, h){
+  const svg = document.getElementById(id);
+  const pad = 8;
+  const max = Math.max(...points)*1.15;
+  const stepX = (w-pad*2)/(points.length-1);
+  const coords = points.map((v,i)=>[pad+i*stepX, h-pad-((v)/(max))*(h-pad*2)]);
+  const pathD = coords.map((c,i)=>(i===0?'M':'L')+c[0].toFixed(1)+','+c[1].toFixed(1)).join(' ');
+  const areaD = pathD + ` L${coords[coords.length-1][0]},${h} L${coords[0][0]},${h} Z`;
+  const dots = coords.map((c,i)=>`<circle cx="${c[0]}" cy="${c[1]}" r="${i===coords.length-1?5:3.2}" fill="${i===coords.length-1?'#2E56DD':'#fff'}" stroke="#2E56DD" stroke-width="2"/>`).join('');
+  const lastX = coords[coords.length-1][0], lastY = coords[coords.length-1][1];
+  const label = `<rect x="${lastX-40}" y="${lastY-30}" width="80" height="21" rx="8" fill="#181D33"/><text x="${lastX}" y="${lastY-15.5}" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">${fmt(points[points.length-1])}</text>`;
+  svg.innerHTML = `
+    <defs><linearGradient id="ag-${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#2E56DD" stop-opacity="0.16"/><stop offset="100%" stop-color="#2E56DD" stop-opacity="0"/></linearGradient></defs>
+    <path d="${areaD}" fill="url(#ag-${id})"/>
+    <path d="${pathD}" fill="none" stroke="#2E56DD" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    ${dots}${label}`;
+}
+
+let toastTimer;
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+function openExpenseSheet(){
+  const key = document.querySelector('#car-chip-row .chip.active')?.dataset.car || 'all';
+  const d = CARS[key];
+  const all = [...d.expenses, ...(d.extraExpenses||[]).map(e=>({...e, color:'var(--text-lo)', icon:'📦', bg:'#EFEFF4'}))];
+  document.getElementById('sheet-content').innerHTML = `
+    <div class="close-x" onclick="closeSheet()">✕</div>
+    <div class="sheet-handle"></div>
+    <div style="font-size:17px; font-weight:800; color:var(--text-hi); margin-bottom:16px;">Все расходы — Май 2024</div>
+    ${all.map(e=>`
+      <div class="exp-card">
+        <div class="exp-top"><div class="exp-icon" style="background:${e.bg}">${e.icon}</div><div class="exp-name">${e.name}</div><div class="exp-amt">${fmt(e.amt)}</div><div class="exp-pct">${e.pct}%</div></div>
+        <div class="exp-bar-bg"><div class="exp-bar-fg" style="width:${e.pct}%;background:${e.color};"></div></div>
+      </div>`).join('')}
+  `;
+  document.getElementById('sheet-overlay').classList.add('show');
+}
+function closeSheet(){ document.getElementById('sheet-overlay').classList.remove('show'); }
+function closeSheetOnOverlay(e){ if(e.target.id==='sheet-overlay') closeSheet(); }
+
+let cdReturnTab = 'home';
+let cdCurrentKey = 'camry';
+function openCarDetail(key, returnTab){
+  cdReturnTab = returnTab; cdCurrentKey = key;
+  const d = CARS[key];
+  document.getElementById('cd-name').textContent = d.name;
+  document.getElementById('cd-plate').textContent = d.plate;
+  document.getElementById('cd-photo').textContent = d.photo;
+  document.getElementById('cd-year').textContent = d.year;
+  document.getElementById('cd-color').textContent = d.color;
+  document.getElementById('cd-status').textContent = d.status;
+  document.getElementById('cd-mileage').textContent = d.mileage;
+  document.getElementById('cd-income').textContent = fmt(d.income);
+  document.getElementById('cd-expense').textContent = fmt(d.expense);
+  document.getElementById('cd-profit').textContent = fmt(d.profit);
+  document.querySelectorAll('#cd-tabbar .tabbtn').forEach((b,i)=>b.classList.toggle('active', i===0));
+  renderCdContent('all');
+  document.getElementById('fs-cardetail').style.display = 'flex';
+}
+function closeCarDetail(){
+  document.getElementById('fs-cardetail').style.display = 'none';
+}
+function setCdTab(el, t){
+  document.querySelectorAll('#cd-tabbar .tabbtn').forEach(b=>b.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('cd-filter-line').style.display = (t==='info') ? 'none' : 'flex';
+  renderCdContent(t);
+}
+function renderCdContent(t){
+  const d = CARS[cdCurrentKey];
+  const box = document.getElementById('cd-content');
+  if(t==='info'){
+    box.innerHTML = `<div class="white-card">${d.info.map(i=>`<div class="info-row"><span class="l">${i.l}</span><span class="v">${i.v}</span></div>`).join('')}</div>`;
+    return;
+  }
+  let items = d.tx;
+  if(t==='income') items = d.tx.filter(x=>x.type==='income');
+  if(t==='expense') items = d.tx.filter(x=>x.type==='expense');
+  box.innerHTML = `<div class="timeline">${items.map((it,i)=>`
+    <div class="tl-row" onclick="showToast('${it.title}: ${it.type==='income'?'+':'-'}${fmt(it.amt)}')">
+      <div class="tl-date"><div class="d">${it.date}</div><div class="t">${it.time}</div></div>
+      <div class="tl-rail"><div class="tl-dot" style="background:${it.bg}; color:${it.color};">${it.icon}</div>${i<items.length-1?'<div class="tl-line"></div>':''}</div>
+      <div class="tl-body"><div class="tl-title">${it.title}</div><div class="tl-sub">${it.sub}</div></div>
+      <div class="tl-amt ${it.type==='income'?'g':'r'}">${it.type==='income'?'+':'−'}${fmt(it.amt)}</div>
+    </div>`).join('')}</div>
+    <button class="cta ghost" onclick="showToast('Загружены более ранние операции')">Показать ещё</button>`;
+}
+
+renderFinance('all');
+</script>
+</body>
+</html>
