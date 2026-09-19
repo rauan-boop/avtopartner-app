@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>R-Line — единый мокап</title>
+<title>R-Line</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -33,7 +33,6 @@
   *{box-sizing:border-box;margin:0;padding:0;}
   body{ background:#E5E7EB; font-family:var(--font); display:flex; align-items:flex-start; justify-content:center; min-height:100vh; padding:40px 16px;}
   .stage{ display:flex; flex-direction:column; align-items:center; gap:16px;}
-  .stage-label{ color:#4B5563; font-size:11px; letter-spacing:0.1em; text-transform:uppercase; font-weight:700;}
 
   .phone{ width:390px; height:826px; background:var(--bg); border-radius:44px; border:8px solid #111827; box-shadow:0 32px 70px -24px rgba(31,41,55,.42); overflow:hidden; position:relative; display:flex; flex-direction:column;}
   .notch{ position:absolute; top:8px; left:50%; transform:translateX(-50%); width:120px; height:22px; background:#111827; border-radius:14px; z-index:60;}
@@ -263,12 +262,10 @@
   .leg-dot{ width:9px; height:9px; border-radius:50%;}
   .leg-val{ margin-left:auto; font-weight:700; color:var(--text-lo); font-size:12px;}
 
-  .hint{ color:#54608f; font-size:11px; text-align:center; max-width:390px; line-height:1.6;}
 </style>
 </head>
 <body>
 <div class="stage">
-  <div class="stage-label">Единый мокап · Приложение владельца автомобиля</div>
   <div class="phone" id="phone">
     <div class="notch"></div>
     <div class="statusbar"><span>9:41</span><span>◉ ◉ ▮▮▮</span></div>
@@ -604,7 +601,6 @@
     </div>
     <div class="toast" id="toast"></div>
   </div>
-  <div class="hint">Кликабельный мокап по вашим эскизам: низ — 5 вкладок, карточки машин открывают карточку авто<br>с действиями/расходами/доходами/информацией, «Финансы» переключаются по машинам.</div>
 </div>
 
 <script>
