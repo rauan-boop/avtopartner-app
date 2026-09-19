@@ -740,11 +740,27 @@ function drawChart(id, points, w, h){
 }
 
 function getPhoneDigits(){
-  return document.getElementById('phone-number').value.replace(/\D/g,'');
+  const digits = document.getElementById('phone-number').value.replace(/\D/g,'');
+  if(digits.length === 11 && (digits[0] === '7' || digits[0] === '8')) return digits.slice(1);
+  return digits.slice(0,10);
+}
+
+function getPhoneVariants(){
+  const localDigits = getPhoneDigits();
+  return [
+    '+7' + localDigits,
+    '7' + localDigits,
+    '8' + localDigits,
+    localDigits,
+    '+7 (' + localDigits.slice(0,3) + ') ' + localDigits.slice(3,6) + '-' + localDigits.slice(6,8) + '-' + localDigits.slice(8,10),
+    '8 (' + localDigits.slice(0,3) + ') ' + localDigits.slice(3,6) + '-' + localDigits.slice(6,8) + '-' + localDigits.slice(8,10)
+  ];
 }
 
 function handlePhoneInput(input){
-  const digits = input.value.replace(/\D/g,'').slice(0,10);
+  let digits = input.value.replace(/\D/g,'');
+  if(digits.length === 11 && (digits[0] === '7' || digits[0] === '8')) digits = digits.slice(1);
+  digits = digits.slice(0,10);
   const groups = [digits.slice(0,3), digits.slice(3,6), digits.slice(6,8), digits.slice(8,10)].filter(Boolean);
   input.value = groups.join(' ');
   document.getElementById('phone-error').textContent = '';
@@ -759,6 +775,7 @@ async function requestAccessCode(event){
     return;
   }
   const phone = '+7' + digits;
+  const phoneVariants = getPhoneVariants();
   const sendButton = document.getElementById('send-code-button');
   const phoneError = document.getElementById('phone-error');
   sendButton.disabled = true;
@@ -768,8 +785,8 @@ async function requestAccessCode(event){
     const {data: profile, error: profileError} = await supabaseClient
       .from('profiles')
       .select('id,email,role,familiya,imya,otchestvo,IIN,telefon,city,city_id,company_id')
-      .eq('telefon', phone)
       .eq('company_id', COMPANY_ID)
+      .in('telefon', phoneVariants)
       .single();
 
     if(profileError){
