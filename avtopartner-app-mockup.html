@@ -777,7 +777,7 @@ async function requestAccessCode(event){
         phoneError.textContent = 'Доступ запрещен. Номер не зарегистрирован в системе';
       }else{
         console.error('[Supabase] Ошибка проверки профиля:', profileError);
-        phoneError.textContent = 'Не удалось проверить номер. Попробуйте ещё раз';
+        phoneError.textContent = 'Ошибка Supabase: ' + (profileError.message || 'не удалось проверить номер');
       }
       return;
     }
@@ -789,7 +789,7 @@ async function requestAccessCode(event){
     });
     if(otpError){
       console.error('[Supabase Auth] Ошибка отправки OTP:', otpError);
-      phoneError.textContent = 'Не удалось отправить код. Попробуйте ещё раз';
+      phoneError.textContent = 'Ошибка отправки кода: ' + (otpError.message || 'проверьте настройки Auth');
       return;
     }
 
@@ -800,7 +800,7 @@ async function requestAccessCode(event){
     document.getElementById('access-code').focus();
   }catch(error){
     console.error('[Supabase] Ошибка подключения:', error);
-    phoneError.textContent = 'Не удалось подключиться к сервису. Попробуйте ещё раз';
+    phoneError.textContent = 'Ошибка подключения: ' + (error.message || 'Supabase недоступен');
   }finally{
     sendButton.disabled = false;
   }
@@ -829,7 +829,7 @@ async function verifyAccessCode(event){
     const {error} = await supabaseClient.auth.verifyOtp({phone, token:code, type:'sms'});
     if(error){
       console.error('[Supabase Auth] Ошибка проверки OTP:', error);
-      codeError.textContent = 'Неверный или просроченный код';
+      codeError.textContent = error.message || 'Неверный или просроченный код';
       return;
     }
     if(!pendingProfile){
@@ -842,7 +842,7 @@ async function verifyAccessCode(event){
     setTimeout(()=>document.getElementById('auth-screen').style.display='none', 650);
   }catch(error){
     console.error('[Supabase Auth] Ошибка подключения:', error);
-    codeError.textContent = 'Не удалось проверить код. Попробуйте ещё раз';
+    codeError.textContent = error.message || 'Ошибка подключения к Supabase';
   }finally{
     verifyButton.disabled = false;
   }
