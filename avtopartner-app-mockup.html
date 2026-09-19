@@ -196,6 +196,7 @@
   .auth-button:disabled{ background:#A7F3D0; color:#6B7280; cursor:not-allowed; box-shadow:none;}
   .auth-button:not(:disabled):active{ transform:scale(.98);}
   .auth-note{ color:var(--text-lo); font-size:11px; line-height:1.5; text-align:center; margin-top:16px;}
+  .auth-demo-button{ display:block; margin:10px auto 0; padding:4px 0; border:0; background:none; color:var(--text-lo); font:inherit; font-size:11px; font-weight:700; cursor:pointer;}
   .auth-note strong{ color:var(--text-hi);}
   .auth-back{ background:none; border:0; color:var(--text-lo); font:inherit; font-size:12px; font-weight:700; cursor:pointer; padding:12px 0 0;}
   .auth-error{ min-height:17px; color:var(--red); font-size:11px; margin-top:7px;}
@@ -286,6 +287,7 @@
           <div class="auth-error" id="phone-error" aria-live="polite"></div>
           <button class="auth-button" id="send-code-button" type="submit" disabled>Выслать код доступа</button>
           <p class="auth-note">Продолжая, вы соглашаетесь с условиями обработки персональных данных.</p>
+          <button class="auth-demo-button" type="button" onclick="openMainScreen()">Перейти в приложение</button>
         </form>
       </div>
 
@@ -874,6 +876,11 @@ function showAuthScreen(){
   document.getElementById('access-code').value = '';
   document.getElementById('send-code-button').disabled = true;
   document.getElementById('verify-code-button').disabled = true;
+}
+
+function openMainScreen(){
+  document.getElementById('auth-screen').style.display = 'none';
+  switchTab('home');
 }
 
 let toastTimer;
