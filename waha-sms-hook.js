@@ -29,10 +29,10 @@ async function findAuthUser(phone) {
   };
 
   const normalizedPhone = normalizePhone(phone);
-  for (let page = 1; page <= 10; page += 1) {
+  for (let page = 1; page <= 100; page += 1) {
     const response = await axios.get(`${supabaseUrl}/auth/v1/admin/users`, {
       ...requestConfig,
-      params: { page, per_page: 1000 }
+      params: { page, per_page: 100 }
     });
     const users = response.data?.users || [];
     const user = users.find(item => normalizePhone(item.phone) === normalizedPhone);
@@ -45,7 +45,7 @@ async function findAuthUser(phone) {
         created_at: user.created_at
       };
     }
-    if (users.length < 1000) break;
+    if (users.length < 100) break;
   }
 
   return null;
@@ -80,7 +80,13 @@ app.post('/api/auth/check-phone', async (req, res) => {
       return res.status(502).json({ error: 'Supabase отклонил service-role ключ. Проверьте SUPABASE_SERVICE_ROLE_KEY' });
     }
     if (upstreamStatus) {
-      return res.status(502).json({ error: `Supabase Authentication API вернул HTTP ${upstreamStatus}` });
+      const details = typeof upstreamDetails === 'string'
+        ? upstreamDetails.slice(0, 300)
+        : upstreamDetails?.msg || upstreamDetails?.message || upstreamDetails?.error;
+      return res.status(502).json({
+        error: `Supabase Authentication API вернул HTTP ${upstreamStatus}`,
+        details: details || 'Supabase не передал описание ошибки'
+      });
     }
     return res.status(502).json({ error: `Не удалось подключиться к Supabase Authentication API (${networkCode})` });
   }
