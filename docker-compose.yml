@@ -19,4 +19,7 @@ services:
       PORT: 3001
       WAHA_URL: ${WAHA_URL:-http://host.docker.internal:3000}
       WAHA_API_KEY: ${WAHA_API_KEY:-}
+      SUPABASE_URL: ${SUPABASE_URL:-https://api.ronat.asia}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      AUTH_SECRET: ${AUTH_SECRET}
     restart: unless-stopped

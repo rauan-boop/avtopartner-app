@@ -8,7 +8,6 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root{
     --bg:#F3F4F6;
@@ -606,10 +605,8 @@
 </div>
 
 <script>
-const SUPABASE_URL = 'https://api.ronat.asia';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE';
 const PROFILE_STORAGE_KEY = 'r-line-profile';
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const AUTH_TOKEN_STORAGE_KEY = 'r-line-auth-token';
 let pendingProfile = null;
 
 const CARS = {
@@ -745,18 +742,6 @@ function getPhoneDigits(){
   return digits.slice(0,10);
 }
 
-function getPhoneVariants(){
-  const localDigits = getPhoneDigits();
-  return [
-    '+7' + localDigits,
-    '7' + localDigits,
-    '8' + localDigits,
-    localDigits,
-    '+7 (' + localDigits.slice(0,3) + ') ' + localDigits.slice(3,6) + '-' + localDigits.slice(6,8) + '-' + localDigits.slice(8,10),
-    '8 (' + localDigits.slice(0,3) + ') ' + localDigits.slice(3,6) + '-' + localDigits.slice(6,8) + '-' + localDigits.slice(8,10)
-  ];
-}
-
 function handlePhoneInput(input){
   let digits = input.value.replace(/\D/g,'');
   if(digits.length === 11 && (digits[0] === '7' || digits[0] === '8')) digits = digits.slice(1);
@@ -781,41 +766,27 @@ async function requestAccessCode(event){
   phoneError.textContent = '';
 
   try{
-    const phoneVariants = getPhoneVariants();
-    const {data: profile, error: profileError} = await supabaseClient
-      .from('profiles')
-      .select('id,email,role,familiya,imya,otchestvo,IIN,telefon,city,city_id')
-      .in('telefon', phoneVariants)
-      .single();
-
-    if(profileError){
-      phoneError.textContent = profileError.code === 'PGRST116'
-        ? 'Доступ запрещен. Номер не зарегистрирован в системе'
-        : 'Ошибка Supabase: ' + (profileError.message || 'не удалось проверить номер');
-      return;
-    }
-
-    pendingProfile = profile;
-    const {error: otpError} = await supabaseClient.auth.signInWithOtp({
-      phone,
-      options:{shouldCreateUser:false}
+    const response = await fetch('/api/auth/request-code', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({phone})
     });
-    if(otpError){
-      console.error('[Supabase Auth] Ошибка отправки OTP:', otpError);
-      phoneError.textContent = 'Ошибка отправки кода: ' + (otpError.message || 'проверьте настройки Custom SMS Provider');
+    const result = await response.json().catch(()=>({}));
+    if(!response.ok){
+      phoneError.textContent = result.error || 'Не удалось отправить код в WhatsApp';
       return;
     }
 
-    console.info('[Supabase Auth] OTP отправлен через Custom SMS Provider:', phone);
-    document.getElementById('auth-phone-display').textContent = phone;
+    console.info('[R-Line] OTP отправлен через WAHA:', result.phone || phone);
+    document.getElementById('auth-phone-display').textContent = result.phone || phone;
     document.getElementById('phone-step').style.display = 'none';
     document.getElementById('code-step').style.display = 'block';
     document.getElementById('access-code').focus();
   }catch(error){
     console.error('[Auth] Ошибка подключения:', error);
     phoneError.textContent = error instanceof TypeError
-      ? `Не удаётся подключиться к Supabase (${SUPABASE_URL}). Проверьте Project URL и DNS`
-      : 'Ошибка подключения: ' + (error.message || 'Supabase недоступен');
+      ? 'Сервис авторизации недоступен. Проверьте backend и Nginx'
+      : 'Ошибка подключения: ' + (error.message || 'сервис авторизации недоступен');
   }finally{
     sendButton.disabled = false;
   }
@@ -841,24 +812,26 @@ async function verifyAccessCode(event){
   codeError.textContent = '';
 
   try{
-    const {error} = await supabaseClient.auth.verifyOtp({phone, token:code, type:'sms'});
-    if(error){
-      console.error('[Supabase Auth] Ошибка проверки OTP:', error);
-      codeError.textContent = error.message || 'Неверный или просроченный код';
+    const response = await fetch('/api/auth/verify-code', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({phone, code})
+    });
+    const result = await response.json().catch(()=>({}));
+    if(!response.ok){
+      codeError.textContent = result.error || 'Неверный или просроченный код';
       return;
     }
 
-    if(!pendingProfile){
-      codeError.textContent = 'Профиль пользователя не найден';
-      return;
-    }
+    pendingProfile = result.profile;
+    localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, result.token);
     localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(pendingProfile));
     console.info('[R-Line] Профиль сохранён:', pendingProfile);
     document.getElementById('auth-success').classList.add('show');
     setTimeout(()=>document.getElementById('auth-screen').style.display='none', 650);
   }catch(error){
-    console.error('[Supabase Auth] Ошибка подключения:', error);
-    codeError.textContent = error.message || 'Ошибка подключения к Supabase';
+    console.error('[Auth] Ошибка подключения:', error);
+    codeError.textContent = error.message || 'Ошибка подключения к сервису авторизации';
   }finally{
     verifyButton.disabled = false;
   }
@@ -872,6 +845,8 @@ function showAuthScreen(){
   document.getElementById('access-code').value = '';
   document.getElementById('send-code-button').disabled = true;
   document.getElementById('verify-code-button').disabled = true;
+  pendingProfile = null;
+  localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
 }
 
 function openMainScreen(){
