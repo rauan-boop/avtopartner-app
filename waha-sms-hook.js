@@ -69,12 +69,20 @@ app.post('/api/auth/check-phone', async (req, res) => {
   } catch (error) {
     const upstreamStatus = error.response?.status;
     const upstreamDetails = error.response?.data;
-    console.error('[Auth] Ошибка проверки телефона:', upstreamStatus || '', upstreamDetails || error.message);
+    const networkCode = error.code || 'UNKNOWN';
+    console.error('[Auth] Ошибка проверки телефона:', {
+      status: upstreamStatus || null,
+      code: networkCode,
+      details: upstreamDetails || error.message
+    });
 
     if (upstreamStatus === 401 || upstreamStatus === 403) {
       return res.status(502).json({ error: 'Supabase отклонил service-role ключ. Проверьте SUPABASE_SERVICE_ROLE_KEY' });
     }
-    return res.status(502).json({ error: 'Supabase Authentication API недоступен. Проверьте SUPABASE_URL и сеть' });
+    if (upstreamStatus) {
+      return res.status(502).json({ error: `Supabase Authentication API вернул HTTP ${upstreamStatus}` });
+    }
+    return res.status(502).json({ error: `Не удалось подключиться к Supabase Authentication API (${networkCode})` });
   }
 });
 
