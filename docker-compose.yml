@@ -7,3 +7,18 @@ services:
     ports:
       - "8080:80"
     restart: unless-stopped
+    depends_on:
+      - waha-hook
+
+  waha-hook:
+    build:
+      context: .
+      dockerfile: Dockerfile.waha
+    container_name: r-line-waha-hook
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: 3001
+      WAHA_URL: ${WAHA_URL:-http://host.docker.internal:3000}
+      WAHA_API_KEY: ${WAHA_API_KEY:-}
+    restart: unless-stopped

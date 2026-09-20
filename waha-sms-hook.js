@@ -1,47 +1,42 @@
 const express = require('express');
 const axios = require('axios');
-
 const app = express();
-const port = Number(process.env.PORT || 3003);
+const port = Number(process.env.PORT || 3001);
 const wahaUrl = process.env.WAHA_URL || 'http://localhost:3000';
-const wahaSession = process.env.WAHA_SESSION || 'default';
 const wahaApiKey = process.env.WAHA_API_KEY || '';
 
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json());
 
-function readOtpPayload(body) {
+function readSmsPayload(body) {
   const payload = body?.payload || body?.data || body;
   const phone = payload?.phone || payload?.telephone || payload?.to || payload?.phoneNumber;
   const code = payload?.token || payload?.otp || payload?.code || payload?.verificationCode;
 
   if (!phone || !code) {
-    throw new Error('Webhook payload must contain phone and token/code');
+    throw new Error('Request body must contain phone and token/code');
   }
 
-  return {
-    phone: String(phone),
-    code: String(code)
-  };
+  return { phone: String(phone), code: String(code) };
 }
 
-function toWahaChatId(phone) {
-  const digits = phone.replace(/\D/g, '');
-  const normalized = digits.startsWith('8') ? `7${digits.slice(1)}` : digits;
-  return normalized.endsWith('@c.us') ? normalized : `${normalized}@c.us`;
+function toChatId(phone) {
+  const normalizedPhone = String(phone).trim().replace(/^\+/, '');
+  if (!/^\d+$/.test(normalizedPhone)) {
+    throw new Error('Phone must contain digits with an optional leading plus');
+  }
+  return `${normalizedPhone}@c.us`;
 }
 
-app.post('/webhook/sms', async (req, res) => {
+app.post('/send-sms', async (req, res) => {
   try {
-    const { phone, code } = readOtpPayload(req.body);
-    const chatId = toWahaChatId(phone);
-    const text = `Код авторизации R-CORE: ${code}`;
+    const { phone, code } = readSmsPayload(req.body);
+    const chatId = toChatId(phone);
 
     await axios.post(
       `${wahaUrl}/api/sendText`,
       {
-        session: wahaSession,
         chatId,
-        text
+        text: `Ваш код авторизации в R-CORE: ${code}`
       },
       {
         headers: {
@@ -52,24 +47,15 @@ app.post('/webhook/sms', async (req, res) => {
       }
     );
 
-    console.info(`[WAHA] OTP отправлен: ${chatId}`);
-    return res.sendStatus(200);
+    console.info(`[WAHA] SMS отправлен: ${chatId}`);
+    return res.status(200).send();
   } catch (error) {
-    const status = error.response?.status;
     const details = error.response?.data || error.message;
-    console.error('[WAHA] Ошибка отправки OTP:', status || '', details);
-
-    // Supabase должен повторить webhook, если WAHA временно недоступен.
-    return res.status(502).json({
-      error: 'WAHA delivery failed'
-    });
+    console.error('[WAHA] Ошибка отправки SMS:', details);
+    return res.status(502).send();
   }
 });
 
-app.get('/health', (_req, res) => {
-  res.json({ ok: true });
-});
-
 app.listen(port, '0.0.0.0', () => {
-  console.info(`WAHA SMS hook listening on port ${port}`);
+  console.info(`Custom SMS Provider listening on port ${port}`);
 });

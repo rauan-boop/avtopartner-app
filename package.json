@@ -1,0 +1,13 @@
+{
+  "name": "r-line-waha-hook",
+  "private": true,
+  "version": "1.0.0",
+  "main": "waha-sms-hook.js",
+  "scripts": {
+    "start": "node waha-sms-hook.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.9",
+    "express": "^4.21.2"
+  }
+}

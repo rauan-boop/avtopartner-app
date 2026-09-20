@@ -31,15 +31,14 @@
     --font:'Manrope',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
   }
   *{box-sizing:border-box;margin:0;padding:0;}
-  html,body{ min-height:100%;}
-  body{ background:var(--bg); font-family:var(--font); display:flex; justify-content:center; min-height:100dvh;}
-  .stage{ width:100%; min-height:100dvh; display:flex; justify-content:center;}
+  html,body{ height:100%;}
+  body{ background:var(--bg); font-family:var(--font); display:flex; justify-content:center; min-height:100dvh; overflow:hidden;}
+  .stage{ width:100%; height:100dvh; display:flex; justify-content:center;}
 
-  .phone{ width:100%; max-width:520px; min-height:100dvh; background:var(--bg); overflow:hidden; position:relative; display:flex; flex-direction:column;}
+  .phone{ width:100%; max-width:520px; height:100dvh; background:var(--bg); overflow:hidden; position:relative; display:flex; flex-direction:column;}
   .notch{ display:none;}
-  .statusbar{ padding:18px 26px 4px; display:flex; justify-content:space-between; color:var(--text-hi); font-size:13px; font-weight:700;}
 
-  .screen{ flex:1; overflow-y:auto; padding:4px 18px 100px; scrollbar-width:none;}
+  .screen{ flex:1 1 auto; min-height:0; overflow-y:auto; padding:4px 18px 24px; scrollbar-width:none;}
   .screen::-webkit-scrollbar{display:none;}
 
   .topbar{ display:flex; align-items:flex-start; justify-content:space-between; padding:8px 0 16px;}
@@ -140,7 +139,7 @@
   .cta{ width:100%; background:var(--green); color:#fff; border:none; border-radius:14px; padding:13px; font-weight:700; font-size:13.5px; cursor:pointer; margin:6px 0; box-shadow:0 8px 16px -10px rgba(5,150,105,.8);}
   .cta.ghost{ background:var(--card); border:1.5px solid var(--line); color:var(--text-hi);}
 
-  .navbar{ position:absolute; bottom:0; left:0; right:0; background:rgba(255,255,255,.95); backdrop-filter:blur(10px); border-top:1px solid var(--line); display:flex; padding:9px 4px 22px;}
+  .navbar{ position:relative; flex:0 0 auto; z-index:10; background:rgba(255,255,255,.95); backdrop-filter:blur(10px); border-top:1px solid var(--line); display:flex; padding:9px 4px max(12px, env(safe-area-inset-bottom));}
   .navitem{ flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; color:var(--text-lo); font-size:9.5px; font-weight:600; cursor:pointer;}
   .navitem.active{ color:var(--blue2);}
   .navicon{ width:22px; height:22px; display:flex; align-items:center; justify-content:center; line-height:1;}
@@ -271,7 +270,6 @@
 <div class="stage">
   <div class="phone" id="phone">
     <div class="notch"></div>
-    <div class="statusbar"><span>9:41</span><span>◉ ◉ ▮▮▮</span></div>
 
     <!-- ================= АВТОРИЗАЦИЯ ================= -->
     <section class="auth-screen" id="auth-screen">
@@ -608,9 +606,8 @@
 </div>
 
 <script>
-const SUPABASE_URL = 'https://core.ronat.asia';
+const SUPABASE_URL = 'https://api.ronat.asia';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE';
-const COMPANY_ID = '696a33fe-a21f-4a00-8f40-82347092bb34';
 const PROFILE_STORAGE_KEY = 'r-line-profile';
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let pendingProfile = null;
@@ -778,49 +775,47 @@ async function requestAccessCode(event){
     return;
   }
   const phone = '+7' + digits;
-  const phoneVariants = getPhoneVariants();
   const sendButton = document.getElementById('send-code-button');
   const phoneError = document.getElementById('phone-error');
   sendButton.disabled = true;
   phoneError.textContent = '';
 
   try{
+    const phoneVariants = getPhoneVariants();
     const {data: profile, error: profileError} = await supabaseClient
       .from('profiles')
-      .select('id,email,role,familiya,imya,otchestvo,IIN,telefon,city,city_id,company_id')
-      .eq('company_id', COMPANY_ID)
+      .select('id,email,role,familiya,imya,otchestvo,IIN,telefon,city,city_id')
       .in('telefon', phoneVariants)
       .single();
 
     if(profileError){
-      if(profileError.code === 'PGRST116'){
-        phoneError.textContent = 'Доступ запрещен. Номер не зарегистрирован в системе';
-      }else{
-        console.error('[Supabase] Ошибка проверки профиля:', profileError);
-        phoneError.textContent = 'Ошибка Supabase: ' + (profileError.message || 'не удалось проверить номер');
-      }
+      phoneError.textContent = profileError.code === 'PGRST116'
+        ? 'Доступ запрещен. Номер не зарегистрирован в системе'
+        : 'Ошибка Supabase: ' + (profileError.message || 'не удалось проверить номер');
       return;
     }
-    pendingProfile = profile;
 
+    pendingProfile = profile;
     const {error: otpError} = await supabaseClient.auth.signInWithOtp({
       phone,
       options:{shouldCreateUser:false}
     });
     if(otpError){
       console.error('[Supabase Auth] Ошибка отправки OTP:', otpError);
-      phoneError.textContent = 'Ошибка отправки кода: ' + (otpError.message || 'проверьте настройки Auth');
+      phoneError.textContent = 'Ошибка отправки кода: ' + (otpError.message || 'проверьте настройки Custom SMS Provider');
       return;
     }
 
-    console.info('[Supabase Auth] OTP отправлен на номер:', phone);
+    console.info('[Supabase Auth] OTP отправлен через Custom SMS Provider:', phone);
     document.getElementById('auth-phone-display').textContent = phone;
     document.getElementById('phone-step').style.display = 'none';
     document.getElementById('code-step').style.display = 'block';
     document.getElementById('access-code').focus();
   }catch(error){
-    console.error('[Supabase] Ошибка подключения:', error);
-    phoneError.textContent = error instanceof TypeError ? 'Сервис временно недоступен. Проверьте подключение к Supabase' : 'Ошибка подключения: ' + (error.message || 'Supabase недоступен');
+    console.error('[Auth] Ошибка подключения:', error);
+    phoneError.textContent = error instanceof TypeError
+      ? `Не удаётся подключиться к Supabase (${SUPABASE_URL}). Проверьте Project URL и DNS`
+      : 'Ошибка подключения: ' + (error.message || 'Supabase недоступен');
   }finally{
     sendButton.disabled = false;
   }
@@ -852,6 +847,7 @@ async function verifyAccessCode(event){
       codeError.textContent = error.message || 'Неверный или просроченный код';
       return;
     }
+
     if(!pendingProfile){
       codeError.textContent = 'Профиль пользователя не найден';
       return;
