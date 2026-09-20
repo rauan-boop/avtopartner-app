@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>R-Line</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -179,7 +180,7 @@
   .auth-brand-mark img{ width:84px; height:84px; display:block; object-fit:contain; mix-blend-mode:darken;}
   .auth-tagline{ width:100%; color:var(--text-lo); font-size:12px; line-height:1.45; font-weight:600; letter-spacing:.02em; text-align:center; margin:0 0 100px; flex-shrink:0; position:relative; z-index:1;}
   .auth-content{ margin:auto 0; width:100%;}
-  .auth-content#phone-step,.auth-content#code-step{ margin:0;}
+  .auth-content#phone-step{ margin:0;}
   .auth-kicker{ color:var(--green); font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.08em; margin-bottom:10px;}
   .auth-title{ color:var(--text-hi); font-size:27px; line-height:1.15; font-weight:800; letter-spacing:0;}
   .auth-text{ color:var(--text-lo); font-size:13px; line-height:1.55; margin-top:12px; max-width:300px;}
@@ -277,29 +278,17 @@
 
       <div class="auth-content" id="phone-step">
         <h1 class="auth-title">Войдите по номеру телефона</h1>
-        <p class="auth-text">Укажите номер, зарегистрированный в R-Line. Мы отправим код доступа в WhatsApp.</p>
-        <form class="auth-form" onsubmit="requestAccessCode(event)">
+        <p class="auth-text">Укажите номер телефона, зарегистрированный в R-Line.</p>
+        <form class="auth-form" onsubmit="checkPhone(event)">
           <label class="auth-label" for="phone-number">Номер телефона</label>
           <div class="phone-input-wrap"><span class="phone-prefix">+7</span><input class="auth-input" id="phone-number" type="tel" inputmode="numeric" autocomplete="tel" maxlength="13" placeholder="___ ___ __ __" oninput="handlePhoneInput(this)"></div>
           <div class="auth-error" id="phone-error" aria-live="polite"></div>
-          <button class="auth-button" id="send-code-button" type="submit" disabled>Выслать код доступа</button>
+          <button class="auth-button" id="check-phone-button" type="submit" disabled>Войти в кабинет</button>
           <p class="auth-note">Продолжая, вы соглашаетесь с условиями обработки персональных данных.</p>
           <button class="auth-demo-button" type="button" onclick="openMainScreen()">Перейти в приложение</button>
         </form>
       </div>
 
-      <div class="auth-content" id="code-step" style="display:none;">
-        <div class="auth-kicker">Проверка номера</div>
-        <h1 class="auth-title">Введите код из WhatsApp</h1>
-        <p class="auth-text">Код из 6 цифр отправлен на номер <strong id="auth-phone-display"></strong>.</p>
-        <form class="auth-form" onsubmit="verifyAccessCode(event)">
-          <label class="auth-label" for="access-code">Код доступа</label>
-          <div class="phone-input-wrap"><input class="auth-input code" id="access-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="••••••" oninput="handleCodeInput(this)"></div>
-          <div class="auth-error" id="code-error" aria-live="polite"></div>
-          <button class="auth-button" id="verify-code-button" type="submit" disabled>Войти в кабинет</button>
-          <div class="auth-success" id="auth-success"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 4 4L19 6"></path></svg><span>Номер подтверждён. Добро пожаловать в кабинет.</span></div>
-        </form>
-      </div>
     </section>
 
     <!-- ================= ГЛАВНАЯ ================= -->
@@ -606,7 +595,6 @@
 
 <script>
 const PROFILE_STORAGE_KEY = 'r-line-profile';
-const AUTH_TOKEN_STORAGE_KEY = 'r-line-auth-token';
 let pendingProfile = null;
 
 const CARS = {
@@ -749,10 +737,10 @@ function handlePhoneInput(input){
   const groups = [digits.slice(0,3), digits.slice(3,6), digits.slice(6,8), digits.slice(8,10)].filter(Boolean);
   input.value = groups.join(' ');
   document.getElementById('phone-error').textContent = '';
-  document.getElementById('send-code-button').disabled = digits.length !== 10;
+  document.getElementById('check-phone-button').disabled = digits.length !== 10;
 }
 
-async function requestAccessCode(event){
+async function checkPhone(event){
   event.preventDefault();
   const digits = getPhoneDigits();
   if(digits.length !== 10){
@@ -760,93 +748,44 @@ async function requestAccessCode(event){
     return;
   }
   const phone = '+7' + digits;
-  const sendButton = document.getElementById('send-code-button');
+  const checkButton = document.getElementById('check-phone-button');
   const phoneError = document.getElementById('phone-error');
-  sendButton.disabled = true;
+  checkButton.disabled = true;
   phoneError.textContent = '';
 
   try{
-    const response = await fetch('/api/auth/request-code', {
+    const response = await fetch('/api/auth/check-phone', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({phone})
     });
     const result = await response.json().catch(()=>({}));
     if(!response.ok){
-      phoneError.textContent = result.error || 'Не удалось отправить код в WhatsApp';
-      return;
-    }
-
-    console.info('[R-Line] OTP отправлен через WAHA:', result.phone || phone);
-    document.getElementById('auth-phone-display').textContent = result.phone || phone;
-    document.getElementById('phone-step').style.display = 'none';
-    document.getElementById('code-step').style.display = 'block';
-    document.getElementById('access-code').focus();
-  }catch(error){
-    console.error('[Auth] Ошибка подключения:', error);
-    phoneError.textContent = error instanceof TypeError
-      ? 'Сервис авторизации недоступен. Проверьте backend и Nginx'
-      : 'Ошибка подключения: ' + (error.message || 'сервис авторизации недоступен');
-  }finally{
-    sendButton.disabled = false;
-  }
-}
-
-function handleCodeInput(input){
-  input.value = input.value.replace(/\D/g,'').slice(0,6);
-  document.getElementById('code-error').textContent = '';
-  document.getElementById('verify-code-button').disabled = input.value.length !== 6;
-}
-
-async function verifyAccessCode(event){
-  event.preventDefault();
-  const code = document.getElementById('access-code').value;
-  if(code.length !== 6){
-    document.getElementById('code-error').textContent = 'Введите код из 6 цифр';
-    return;
-  }
-  const phone = '+7' + getPhoneDigits();
-  const verifyButton = document.getElementById('verify-code-button');
-  const codeError = document.getElementById('code-error');
-  verifyButton.disabled = true;
-  codeError.textContent = '';
-
-  try{
-    const response = await fetch('/api/auth/verify-code', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({phone, code})
-    });
-    const result = await response.json().catch(()=>({}));
-    if(!response.ok){
-      codeError.textContent = result.error || 'Неверный или просроченный код';
+      phoneError.textContent = result.error || 'Такого номера нет в базе данных';
       return;
     }
 
     pendingProfile = result.profile;
-    localStorage.setItem(AUTH_TOKEN_STORAGE_KEY, result.token);
     localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(pendingProfile));
-    console.info('[R-Line] Профиль сохранён:', pendingProfile);
-    document.getElementById('auth-success').classList.add('show');
-    setTimeout(()=>document.getElementById('auth-screen').style.display='none', 650);
+    console.info('[R-Line] Номер подтверждён:', pendingProfile);
+    document.getElementById('auth-screen').style.display = 'none';
+    switchTab('home');
   }catch(error){
     console.error('[Auth] Ошибка подключения:', error);
-    codeError.textContent = error.message || 'Ошибка подключения к сервису авторизации';
+    phoneError.textContent = error instanceof TypeError
+      ? 'Сервис проверки номера недоступен. Проверьте backend и Nginx'
+      : 'Ошибка подключения: ' + (error.message || 'сервис авторизации недоступен');
   }finally{
-    verifyButton.disabled = false;
+    checkButton.disabled = false;
   }
 }
 
 function showAuthScreen(){
   document.getElementById('auth-screen').style.display = 'flex';
   document.getElementById('phone-step').style.display = 'block';
-  document.getElementById('code-step').style.display = 'none';
   document.getElementById('phone-number').value = '';
-  document.getElementById('access-code').value = '';
-  document.getElementById('send-code-button').disabled = true;
-  document.getElementById('verify-code-button').disabled = true;
+  document.getElementById('check-phone-button').disabled = true;
   pendingProfile = null;
-  localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
 }
 
 function openMainScreen(){

@@ -1,5 +1,5 @@
 {
-  "name": "r-line-waha-hook",
+  "name": "r-line-auth-service",
   "private": true,
   "version": "1.0.0",
   "main": "waha-sms-hook.js",
