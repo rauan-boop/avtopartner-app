@@ -20,35 +20,18 @@ async function findAuthUser(phone) {
     throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required');
   }
 
-  const requestConfig = {
+  const response = await axios.post(`${supabaseUrl}/rest/v1/rpc/check_auth_phone`, {
+    phone_input: phone
+  }, {
     headers: {
       apikey: supabaseServiceRoleKey,
-      Authorization: `Bearer ${supabaseServiceRoleKey}`
+      Authorization: `Bearer ${supabaseServiceRoleKey}`,
+      'Content-Type': 'application/json'
     },
     timeout: 10000
-  };
+  });
 
-  const normalizedPhone = normalizePhone(phone);
-  for (let page = 1; page <= 100; page += 1) {
-    const response = await axios.get(`${supabaseUrl}/auth/v1/admin/users`, {
-      ...requestConfig,
-      params: { page, per_page: 100 }
-    });
-    const users = response.data?.users || [];
-    const user = users.find(item => normalizePhone(item.phone) === normalizedPhone);
-    if (user) {
-      return {
-        id: user.id,
-        phone: user.phone,
-        email: user.email,
-        role: user.role,
-        created_at: user.created_at
-      };
-    }
-    if (users.length < 100) break;
-  }
-
-  return null;
+  return response.data || null;
 }
 
 app.post('/api/auth/check-phone', async (req, res) => {
@@ -84,11 +67,11 @@ app.post('/api/auth/check-phone', async (req, res) => {
         ? upstreamDetails.slice(0, 300)
         : upstreamDetails?.msg || upstreamDetails?.message || upstreamDetails?.error;
       return res.status(502).json({
-        error: `Supabase Authentication API вернул HTTP ${upstreamStatus}`,
+        error: `Supabase RPC проверки телефона вернул HTTP ${upstreamStatus}`,
         details: details || 'Supabase не передал описание ошибки'
       });
     }
-    return res.status(502).json({ error: `Не удалось подключиться к Supabase Authentication API (${networkCode})` });
+    return res.status(502).json({ error: `Не удалось подключиться к Supabase RPC (${networkCode})` });
   }
 });
 
