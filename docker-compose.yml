@@ -15,8 +15,6 @@ services:
       context: .
       dockerfile: Dockerfile.waha
     container_name: r-line-waha-hook
-    ports:
-      - "3002:3001"
     environment:
       PORT: 3001
       WAHA_URL: ${WAHA_URL:-http://host.docker.internal:3000}
