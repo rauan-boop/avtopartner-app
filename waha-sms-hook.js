@@ -53,6 +53,10 @@ async function findAuthUser(phone) {
 
 app.post('/api/auth/check-phone', async (req, res) => {
   try {
+    if (!supabaseUrl || !supabaseServiceRoleKey || supabaseServiceRoleKey === 'replace-with-service-role-key') {
+      return res.status(500).json({ error: 'На сервере не настроен SUPABASE_SERVICE_ROLE_KEY' });
+    }
+
     const phone = normalizePhone(req.body?.phone);
     if (phone.length !== 11 || !phone.startsWith('7')) {
       return res.status(400).json({ error: 'Введите корректный номер телефона' });
@@ -63,8 +67,14 @@ app.post('/api/auth/check-phone', async (req, res) => {
 
     return res.json({ ok: true, profile: user });
   } catch (error) {
-    console.error('[Auth] Ошибка проверки телефона:', error.response?.data || error.message);
-    return res.status(502).json({ error: 'Не удалось проверить номер телефона' });
+    const upstreamStatus = error.response?.status;
+    const upstreamDetails = error.response?.data;
+    console.error('[Auth] Ошибка проверки телефона:', upstreamStatus || '', upstreamDetails || error.message);
+
+    if (upstreamStatus === 401 || upstreamStatus === 403) {
+      return res.status(502).json({ error: 'Supabase отклонил service-role ключ. Проверьте SUPABASE_SERVICE_ROLE_KEY' });
+    }
+    return res.status(502).json({ error: 'Supabase Authentication API недоступен. Проверьте SUPABASE_URL и сеть' });
   }
 });
 
