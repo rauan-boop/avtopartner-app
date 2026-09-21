@@ -1,4 +1,12 @@
 services:
+  waha:
+    image: devlikeapro/waha:latest
+    container_name: r-line-waha
+    environment:
+      WHATSAPP_DEFAULT_ENGINE: WEBJS
+      WHATSAPP_API_KEY: ${WAHA_API_KEY:-}
+    restart: unless-stopped
+
   frontend:
     build:
       context: .
@@ -9,6 +17,7 @@ services:
     restart: unless-stopped
     depends_on:
       - auth-service
+      - waha
 
   auth-service:
     build:
@@ -23,3 +32,5 @@ services:
       WAHA_SESSION: ${WAHA_SESSION:-default}
       WAHA_API_KEY: ${WAHA_API_KEY:-}
     restart: unless-stopped
+    depends_on:
+      - waha
