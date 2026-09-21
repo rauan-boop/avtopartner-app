@@ -19,4 +19,7 @@ services:
       PORT: 3001
       SUPABASE_URL: ${SUPABASE_URL:-https://api.ronat.asia}
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      WAHA_URL: ${WAHA_URL:-http://waha:3000}
+      WAHA_SESSION: ${WAHA_SESSION:-default}
+      WAHA_API_KEY: ${WAHA_API_KEY:-}
     restart: unless-stopped

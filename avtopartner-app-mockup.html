@@ -199,6 +199,8 @@
   .auth-note strong{ color:var(--text-hi);}
   .auth-back{ background:none; border:0; color:var(--text-lo); font:inherit; font-size:12px; font-weight:700; cursor:pointer; padding:12px 0 0;}
   .auth-error{ min-height:17px; color:var(--red); font-size:11px; margin-top:7px;}
+  .auth-code-step{ display:none;}
+  .auth-code-step .auth-text{ max-width:340px;}
   .auth-success{ display:none; align-items:center; gap:9px; color:var(--green); background:var(--green-soft); border-radius:12px; padding:11px 12px; margin-top:14px; font-size:11px; line-height:1.4;}
   .auth-success.show{ display:flex;}
   .auth-success svg{ width:18px; height:18px; flex-shrink:0; fill:none; stroke:currentColor; stroke-width:2; stroke-linecap:round; stroke-linejoin:round;}
@@ -283,9 +285,22 @@
           <label class="auth-label" for="phone-number">Номер телефона</label>
           <div class="phone-input-wrap"><span class="phone-prefix">+7</span><input class="auth-input" id="phone-number" type="tel" inputmode="numeric" autocomplete="tel" maxlength="13" placeholder="___ ___ __ __" oninput="handlePhoneInput(this)"></div>
           <div class="auth-error" id="phone-error" aria-live="polite"></div>
-          <button class="auth-button" id="check-phone-button" type="submit" disabled>Войти в кабинет</button>
+          <button class="auth-button" id="check-phone-button" type="submit" disabled>Отправить код</button>
           <p class="auth-note">Продолжая, вы соглашаетесь с условиями обработки персональных данных.</p>
           <button class="auth-demo-button" type="button" onclick="openMainScreen()">Перейти в приложение</button>
+        </form>
+      </div>
+
+      <div class="auth-content auth-code-step" id="otp-step">
+        <div class="auth-kicker">Подтверждение номера</div>
+        <h1 class="auth-title">Введите код из WhatsApp</h1>
+        <p class="auth-text" id="otp-hint">Шестизначный код отправлен на ваш номер.</p>
+        <form class="auth-form" onsubmit="verifyOtp(event)">
+          <label class="auth-label" for="otp-input">Код подтверждения</label>
+          <input class="auth-input code" id="otp-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="______" oninput="handleOtpInput(this)">
+          <div class="auth-error" id="otp-error" aria-live="polite"></div>
+          <button class="auth-button" id="login-button" type="submit" disabled>Войти в кабинет</button>
+          <button class="auth-back" type="button" onclick="showAuthScreen()">Изменить номер</button>
         </form>
       </div>
 
@@ -595,7 +610,26 @@
 
 <script>
 const PROFILE_STORAGE_KEY = 'r-line-profile';
-let pendingProfile = null;
+const AppState = {
+  uid: null,
+  email: null,
+  role: null,
+  familiya: null,
+  imya: null,
+  otchestvo: null,
+  IIN: null,
+  telefon: null,
+  numberUdostLichnosti: null,
+  kemVydan: null,
+  kogdaVudan: null,
+  adrespropiski: null,
+  avatar: null,
+  city: null,
+  city_id: null,
+  compani_name: null,
+  compani_id: null
+};
+let pendingPhone = '';
 
 const CARS = {
   camry:{
@@ -765,27 +799,79 @@ async function checkPhone(event){
       return;
     }
 
-    pendingProfile = result.profile;
-    localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(pendingProfile));
-    console.info('[R-Line] Номер подтверждён:', pendingProfile);
-    document.getElementById('auth-screen').style.display = 'none';
-    switchTab('home');
+    pendingPhone = phone;
+    AppState.uid = result.uid;
+    document.getElementById('phone-step').style.display = 'none';
+    document.getElementById('otp-step').style.display = 'block';
+    document.getElementById('otp-input').value = '';
+    document.getElementById('otp-error').textContent = '';
+    document.getElementById('login-button').disabled = true;
+    document.getElementById('otp-input').focus();
   }catch(error){
     console.error('[Auth] Ошибка подключения:', error);
     phoneError.textContent = error instanceof TypeError
       ? 'Сервис проверки номера недоступен. Проверьте backend и Nginx'
       : 'Ошибка подключения: ' + (error.message || 'сервис авторизации недоступен');
   }finally{
-    checkButton.disabled = false;
+    if(document.getElementById('phone-step').style.display !== 'none') checkButton.disabled = false;
+  }
+}
+
+function handleOtpInput(input){
+  input.value = input.value.replace(/\D/g, '').slice(0, 6);
+  document.getElementById('otp-error').textContent = '';
+  document.getElementById('login-button').disabled = input.value.length !== 6;
+}
+
+async function verifyOtp(event){
+  event.preventDefault();
+  const otpInput = document.getElementById('otp-input');
+  const loginButton = document.getElementById('login-button');
+  const otpError = document.getElementById('otp-error');
+  loginButton.disabled = true;
+  otpError.textContent = '';
+
+  try{
+    const response = await fetch('/api/auth/verify-otp', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({phone:pendingPhone, otp:otpInput.value})
+    });
+    const result = await response.json().catch(()=>({}));
+    if(!response.ok){
+      otpError.textContent = result.error || 'Неверный код подтверждения';
+      return;
+    }
+
+    Object.keys(AppState).forEach(key=>{
+      if(key !== 'uid') AppState[key] = result.profile?.[key] ?? null;
+    });
+    AppState.uid = result.uid;
+    localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(AppState));
+    console.info('[R-Line] Пользователь авторизован:', AppState.uid);
+    document.getElementById('auth-screen').style.display = 'none';
+    switchTab('home');
+  }catch(error){
+    console.error('[Auth] Ошибка проверки OTP:', error);
+    otpError.textContent = error instanceof TypeError
+      ? 'Сервис авторизации недоступен'
+      : 'Ошибка подключения: ' + (error.message || 'сервис авторизации недоступен');
+  }finally{
+    if(document.getElementById('otp-step').style.display !== 'none') loginButton.disabled = otpInput.value.length !== 6;
   }
 }
 
 function showAuthScreen(){
   document.getElementById('auth-screen').style.display = 'flex';
   document.getElementById('phone-step').style.display = 'block';
+  document.getElementById('otp-step').style.display = 'none';
   document.getElementById('phone-number').value = '';
   document.getElementById('check-phone-button').disabled = true;
-  pendingProfile = null;
+  document.getElementById('phone-error').textContent = '';
+  document.getElementById('otp-error').textContent = '';
+  document.getElementById('otp-input').value = '';
+  pendingPhone = '';
+  AppState.uid = null;
 }
 
 function openMainScreen(){
