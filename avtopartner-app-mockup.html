@@ -794,9 +794,12 @@ async function checkPhone(event){
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({phone})
     });
-    const result = await response.json().catch(()=>({}));
+    const contentType = response.headers.get('content-type') || '';
+    const result = contentType.includes('application/json')
+      ? await response.json().catch(()=>({}))
+      : {};
     if(!response.ok){
-      phoneError.textContent = result.error || 'Такого номера нет в базе данных';
+      phoneError.textContent = result.error || `Сервис авторизации недоступен (HTTP ${response.status})`;
       return;
     }
 
