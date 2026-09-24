@@ -312,7 +312,7 @@
     <div class="screen" id="screen-home">
       <div class="topbar">
         <div>
-          <div class="greeting-hi">Здравствуйте, Иван!</div>
+          <div class="greeting-hi" id="greeting-hi">Здравствуйте!</div>
           <div class="greeting-lo">Добро пожаловать в панель партнёра</div>
         </div>
         <div class="bell" onclick="showToast('3 новых уведомления')">🔔<span class="dot">3</span></div>
@@ -846,7 +846,10 @@ async function verifyOtp(event){
       return;
     }
 
-    AppState.uid = result.uid;
+    Object.keys(AppState).forEach(key=>{
+      AppState[key] = result.profile?.[key] ?? (key === 'uid' ? result.uid : null);
+    });
+    updateGreeting();
     localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(AppState));
     document.getElementById('auth-screen').style.display = 'none';
     switchTab('home');
@@ -858,6 +861,13 @@ async function verifyOtp(event){
   }finally{
     if(document.getElementById('otp-step').style.display !== 'none') loginButton.disabled = otpInput.value.length !== 6;
   }
+}
+
+function updateGreeting(){
+  const firstName = String(AppState.imya || '').trim();
+  document.getElementById('greeting-hi').textContent = firstName
+    ? `Здравствуйте, ${firstName}!`
+    : 'Здравствуйте!';
 }
 
 function showAuthScreen(){

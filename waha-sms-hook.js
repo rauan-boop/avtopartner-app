@@ -40,6 +40,28 @@ async function findAuthUser(phone) {
   return response.data || null;
 }
 
+function serviceHeaders() {
+  return {
+    apikey: supabaseServiceRoleKey,
+    Authorization: `Bearer ${supabaseServiceRoleKey}`,
+    'Content-Type': 'application/json'
+  };
+}
+
+async function findProfile(userId) {
+  const columns = [
+    'email', 'role', 'familiya', 'imya', 'otchestvo', 'IIN', 'telefon',
+    'numberUdostLichnosti', 'kemVydan', 'kogdaVudan', 'adrespropiski',
+    'avatar', 'city', 'city_id', 'compani_name', 'compani_id'
+  ].join(',');
+  const response = await axios.get(`${supabaseUrl}/rest/v1/profiles`, {
+    params: { id: `eq.${userId}`, select: `id,${columns}`, limit: 1 },
+    headers: serviceHeaders(),
+    timeout: 10000
+  });
+  return response.data?.[0] || null;
+}
+
 async function sendOtp(phone, otp) {
   if (!wahaUrl) {
     const error = new Error('WAHA_URL is not configured');
@@ -126,8 +148,11 @@ app.post('/api/auth/verify-otp', async (req, res) => {
   }
   if (otp !== pending.otp) return res.status(401).json({ error: 'Неверный код подтверждения' });
 
+  const profile = await findProfile(pending.uid);
+  if (!profile) return res.status(404).json({ error: 'Профиль пользователя не найден' });
+
   otpStore.delete(phone);
-  return res.json({ ok: true, uid: pending.uid });
+  return res.json({ ok: true, uid: pending.uid, profile });
 });
 
 app.listen(port, '0.0.0.0', () => {
