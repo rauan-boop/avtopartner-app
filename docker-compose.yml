@@ -1,4 +1,14 @@
 services:
+  waha:
+    image: devlikeapro/waha:latest
+    container_name: r-line-waha
+    environment:
+      WHATSAPP_DEFAULT_ENGINE: WEBJS
+      WHATSAPP_API_KEY: ${WAHA_API_KEY:-}
+    volumes:
+      - waha_sessions:/app/.sessions
+    restart: unless-stopped
+
   frontend:
     build:
       context: .
@@ -19,4 +29,12 @@ services:
       PORT: 3001
       SUPABASE_URL: ${SUPABASE_URL:-https://api.ronat.asia}
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      WAHA_URL: ${WAHA_URL:-http://waha:3000}
+      WAHA_SESSION: ${WAHA_SESSION:-default}
+      WAHA_API_KEY: ${WAHA_API_KEY:-}
     restart: unless-stopped
+    depends_on:
+      - waha
+
+volumes:
+  waha_sessions:
