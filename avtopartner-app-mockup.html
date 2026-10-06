@@ -499,12 +499,12 @@
 
       <div class="hero" style="cursor:default;" onclick="showToast('Редактирование профиля')">
         <div style="display:flex; align-items:center; gap:14px;">
-          <div style="width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:18px;flex-shrink:0;">ИИ</div>
+          <div id="profile-avatar" style="width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:18px;flex-shrink:0;">--</div>
           <div style="flex:1;">
-            <div style="color:#fff; font-size:16px; font-weight:800;">Иван Иванов</div>
+            <div style="color:#fff; font-size:16px; font-weight:800;"><span id="profile-first-name">—</span> <span id="profile-last-name">—</span></div>
             <div style="color:#B9C6F7; font-size:12px; margin-top:2px;">Партнёр</div>
-            <div style="color:#DCE4FB; font-size:11.5px; margin-top:6px;">✉️ ivan.ivanov@mail.ru</div>
-            <div style="color:#DCE4FB; font-size:11.5px; margin-top:3px;">📞 +7 777 123-45-67</div>
+            <div style="color:#DCE4FB; font-size:11.5px; margin-top:6px;">✉️ <span id="profile-email">—</span></div>
+            <div style="color:#DCE4FB; font-size:11.5px; margin-top:3px;">📞 <span id="profile-phone">—</span></div>
           </div>
           <div style="color:#DCE4FB;">›</div>
         </div>
@@ -711,6 +711,7 @@ function switchTab(tab){
   });
   document.getElementById('screen-'+tab).scrollTop = 0;
   if(tab==='finance') renderFinance(document.querySelector('#car-chip-row .chip.active')?.dataset.car || 'all');
+  if(tab==='profile') renderProfile();
 }
 
 function setChip(el){ el.parentElement.querySelectorAll('.chip').forEach(c=>c.classList.remove('active')); el.classList.add('active'); showToast('Список отфильтрован'); }
@@ -850,6 +851,7 @@ async function verifyOtp(event){
       AppState[key] = result.profile?.[key] ?? (key === 'uid' ? result.uid : null);
     });
     updateGreeting();
+    renderProfile();
     localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(AppState));
     document.getElementById('auth-screen').style.display = 'none';
     switchTab('home');
@@ -868,6 +870,30 @@ function updateGreeting(){
   document.getElementById('greeting-hi').textContent = firstName
     ? `Здравствуйте, ${firstName}!`
     : 'Здравствуйте!';
+}
+
+function renderProfile(){
+  const firstName = String(AppState.imya || '').trim();
+  const lastName = String(AppState.familiya || '').trim();
+  document.getElementById('profile-first-name').textContent = firstName || '—';
+  document.getElementById('profile-last-name').textContent = lastName || '—';
+  document.getElementById('profile-email').textContent = String(AppState.email || '').trim() || '—';
+  document.getElementById('profile-phone').textContent = String(AppState.telefon || '').trim() || '—';
+  document.getElementById('profile-avatar').textContent = `${firstName[0] || ''}${lastName[0] || ''}`.toUpperCase() || '--';
+}
+
+function restoreProfile(){
+  try{
+    const savedProfile = JSON.parse(localStorage.getItem(PROFILE_STORAGE_KEY) || 'null');
+    if(!savedProfile || typeof savedProfile !== 'object') return;
+    Object.keys(AppState).forEach(key=>{
+      AppState[key] = savedProfile[key] ?? null;
+    });
+    updateGreeting();
+    renderProfile();
+  }catch(error){
+    console.warn('[Profile] Не удалось восстановить профиль:', error);
+  }
 }
 
 function showAuthScreen(){
@@ -962,6 +988,7 @@ function renderCdContent(t){
     <button class="cta ghost" onclick="showToast('Загружены более ранние операции')">Показать ещё</button>`;
 }
 
+restoreProfile();
 renderFinance('all');
 </script>
 </body>
