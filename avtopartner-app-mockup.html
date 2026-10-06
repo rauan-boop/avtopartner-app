@@ -514,8 +514,7 @@
         <div class="sec-title" style="margin-bottom:10px; font-size:13.5px;">🅿️ Информация о партнёре</div>
         <div class="info-row"><span class="l">Тип сотрудничества</span><span class="v">Субаренда авто</span></div>
         <div class="info-row"><span class="l">Автомобилей передано</span><span class="v">2</span></div>
-        <div class="info-row"><span class="l">Дата подключения</span><span class="v">15.03.2023</span></div>
-        <div class="info-row" style="border-bottom:none;"><span class="l">Условия распределения</span><span class="v">70% / 30%</span></div>
+        <div class="info-row" style="border-bottom:none;"><span class="l">Дата подключения</span><span class="v" id="profile-created-at">—</span></div>
       </div>
 
       <div class="white-card">
@@ -629,7 +628,8 @@ const AppState = {
   city: null,
   city_id: null,
   compani_name: null,
-  compani_id: null
+  compani_id: null,
+  created_at: null
 };
 let pendingPhone = '';
 const CARS = {
@@ -880,6 +880,12 @@ function renderProfile(){
   document.getElementById('profile-email').textContent = String(AppState.email || '').trim() || '—';
   document.getElementById('profile-phone').textContent = String(AppState.telefon || '').trim() || '—';
   document.getElementById('profile-avatar').textContent = `${firstName[0] || ''}${lastName[0] || ''}`.toUpperCase() || '--';
+  document.getElementById('profile-created-at').textContent = formatProfileDate(AppState.created_at);
+}
+
+function formatProfileDate(value){
+  const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return match ? `${match[3]}.${match[2]}.${match[1]} г.` : '—';
 }
 
 function restoreProfile(){

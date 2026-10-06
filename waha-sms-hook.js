@@ -50,7 +50,7 @@ function serviceHeaders() {
 
 async function findProfile(userId) {
   const columns = [
-    'email', 'role', 'familiya', 'imya', 'otchestvo', 'IIN', 'telefon',
+    'email', 'role', 'familiya', 'imya', 'otchestvo', 'IIN', 'telefon', 'created_at',
     'numberUdostLichnosti', 'kemVydan', 'kogdaVudan', 'adrespropiski',
     'avatar', 'city', 'city_id', 'compani_name', 'compani_id'
   ].join(',');
