@@ -74,7 +74,7 @@ async function sendOtp(phone, otp) {
   try {
     await axios.post(`${wahaUrl}/api/sendText`, {
       chatId: `${phone}@c.us`,
-      text: `Ваш код входа в R-Line: ${otp}. Код действителен 5 минут.`,
+      text: `Ваш код входа в R-invest: ${otp}. Код действителен 5 минут.`,
       session: wahaSession
     }, { headers, timeout: 10000 });
   } catch (error) {
