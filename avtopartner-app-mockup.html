@@ -551,6 +551,7 @@
         </div>
       </div>
 
+      <button class="cta ghost" onclick="refreshApplication()">↻ Обновить приложение</button>
       <button class="cta ghost" style="color:var(--red); border-color:#FBD9DA;" onclick="showAuthScreen()">⬅ Выйти из аккаунта</button>
     </div>
 
@@ -913,6 +914,12 @@ function showAuthScreen(){
   document.getElementById('otp-input').value = '';
   pendingPhone = '';
   AppState.uid = null;
+}
+
+function refreshApplication(){
+  const url = new URL(window.location.href);
+  url.searchParams.set('_refresh', Date.now().toString());
+  window.location.replace(url.toString());
 }
 
 function openMainScreen(){
