@@ -224,20 +224,31 @@ app.get('/api/partner/contracts', async (req, res) => {
   if (!Number.isSafeInteger(offset) || offset < 0 || offset > 1000000) {
     return res.status(400).json({ error: 'Некорректный номер страницы аренд' });
   }
+  const status = String(req.query.status || 'all');
+  if (!['all', 'active', 'completed'].includes(status)) {
+    return res.status(400).json({ error: 'Некорректный фильтр статуса договора' });
+  }
+  const modelSearch = String(req.query.model || '').trim();
+  if (modelSearch.length > 100) {
+    return res.status(400).json({ error: 'Слишком длинный поисковый запрос модели автомобиля' });
+  }
 
   try {
     const profile = await findProfile(userId);
     if (!profile) return res.status(404).json({ error: 'Профиль пользователя не найден' });
 
     const filterValue = value => value == null ? 'is.null' : `eq.${value}`;
+    const filters = {
+      car_hozyain_id: `eq.${userId}`,
+      compani_id: filterValue(profile.compani_id),
+      city_id: filterValue(profile.city_id),
+      select: 'id,marka_avto,model_avto,gos_nomer,date_nachala_arendy,date_okonchaniya_arendy,vyezd_cena,stoimost_arendy_bez_depozita,status_dogovora',
+      order: 'date_nachala_arendy.desc,id.desc'
+    };
+    if (status !== 'all') filters.status_dogovora = `eq.${status === 'active'}`;
+    if (modelSearch) filters.model_avto = `ilike.*${modelSearch}*`;
     const response = await axios.get(`${supabaseUrl}/rest/v1/contracts`, {
-      params: {
-        car_hozyain_id: `eq.${userId}`,
-        compani_id: filterValue(profile.compani_id),
-        city_id: filterValue(profile.city_id),
-        select: 'id,marka_avto,model_avto,gos_nomer,date_nachala_arendy,date_okonchaniya_arendy,vyezd_cena,stoimost_arendy_bez_depozita,status_dogovora',
-        order: 'date_nachala_arendy.desc,id.desc'
-      },
+      params: filters,
       headers: {
         ...serviceHeaders(),
         Prefer: 'count=exact',
