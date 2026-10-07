@@ -82,8 +82,10 @@
   .sec-link{ color:var(--blue2); font-size:12.5px; font-weight:600; cursor:pointer;}
 
   .car-row{ display:flex; align-items:center; gap:12px; background:var(--card); border:1px solid var(--line); border-radius:16px; padding:12px 14px; margin-bottom:10px; cursor:pointer; transition:transform .15s; box-shadow:0 5px 14px rgba(31,41,55,.05);}
+  .car-row.home-car-row{ cursor:default;}
   .car-row:active{ transform:scale(.98);}
   .car-thumb{ width:46px; height:46px; border-radius:12px; background:var(--blue-soft); display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0;}
+  .car-thumb img{ width:100%; height:100%; border-radius:inherit; object-fit:cover;}
   .car-mid{ flex:1; min-width:0;}
   .car-name{ font-size:13.5px; font-weight:700; color:var(--text-hi);}
   .car-plate{ font-size:11.5px; color:var(--text-lo); margin-top:2px;}
@@ -341,7 +343,7 @@
 
       <div class="white-card">
         <div class="wc-top">
-          <div><div class="wc-title">Мои автомобили</div><div class="wc-num">2</div><div class="wc-sub">оба в субаренде</div></div>
+          <div><div class="wc-title">Мои автомобили</div><div class="wc-num" id="home-car-count">—</div><div class="wc-sub">автомобилей партнёра</div></div>
           <div class="wc-icon">🚗</div>
         </div>
         <svg width="100%" height="80" viewBox="0 0 320 80" style="margin-top:10px;">
@@ -353,16 +355,7 @@
 
       <div class="sec-head"><div class="sec-title">Мои автомобили</div><div class="sec-link" onclick="switchTab('cars')">Смотреть все →</div></div>
 
-      <div class="car-row" onclick="openCarDetail('camry','home')">
-        <div class="car-thumb">🚘</div>
-        <div class="car-mid"><div class="car-name">Toyota Camry</div><div class="car-plate">A123BC 777</div></div>
-        <div class="car-right"><div class="car-amt">45 600 ₸</div><div class="car-delta r">↑ 5%</div></div>
-      </div>
-      <div class="car-row" onclick="openCarDetail('rio','home')">
-        <div class="car-thumb">🚙</div>
-        <div class="car-mid"><div class="car-name">Kia Rio</div><div class="car-plate">B456DE 777</div></div>
-        <div class="car-right"><div class="car-amt">32 900 ₸</div><div class="car-delta g">↓ 3%</div></div>
-      </div>
+      <div id="home-cars-list" aria-live="polite"><div class="info-row"><span class="l">Войдите, чтобы загрузить автомобили</span></div></div>
     </div>
 
     <!-- ================= АВТОМОБИЛИ / АРЕНДЫ ================= -->
@@ -630,7 +623,8 @@ const AppState = {
   city_id: null,
   compani_name: null,
   compani_id: null,
-  created_at: null
+  created_at: null,
+  sessionToken: null
 };
 let pendingPhone = '';
 const CARS = {
@@ -849,11 +843,14 @@ async function verifyOtp(event){
     }
 
     Object.keys(AppState).forEach(key=>{
-      AppState[key] = result.profile?.[key] ?? (key === 'uid' ? result.uid : null);
+      AppState[key] = key === 'sessionToken'
+        ? result.sessionToken
+        : (result.profile?.[key] ?? (key === 'uid' ? result.uid : null));
     });
     updateGreeting();
     renderProfile();
     localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(AppState));
+    loadPartnerCars();
     document.getElementById('auth-screen').style.display = 'none';
     switchTab('home');
   }catch(error){
@@ -898,6 +895,7 @@ function restoreProfile(){
     });
     updateGreeting();
     renderProfile();
+    loadPartnerCars();
   }catch(error){
     console.warn('[Profile] Не удалось восстановить профиль:', error);
   }
@@ -914,6 +912,87 @@ function showAuthScreen(){
   document.getElementById('otp-input').value = '';
   pendingPhone = '';
   AppState.uid = null;
+  AppState.sessionToken = null;
+  localStorage.removeItem(PROFILE_STORAGE_KEY);
+}
+
+function firstCarPhoto(value){
+  if(Array.isArray(value)) return firstCarPhoto(value[0]);
+  if(value && typeof value === 'object') return firstCarPhoto(value.url || value.src || value.path);
+  if(typeof value !== 'string') return '';
+  const photo = value.trim();
+  if(!photo) return '';
+  if(photo.startsWith('[') || photo.startsWith('{')){
+    try{return firstCarPhoto(JSON.parse(photo));}catch{return '';}
+  }
+  return photo;
+}
+
+function renderPartnerCars(cars, totalCount = cars.length){
+  const list = document.getElementById('home-cars-list');
+  document.getElementById('home-car-count').textContent = totalCount.toLocaleString('ru-RU');
+  list.replaceChildren();
+
+  if(cars.length === 0){
+    const empty = document.createElement('div');
+    empty.className = 'info-row';
+    empty.textContent = 'Автомобилей пока нет';
+    list.appendChild(empty);
+    return;
+  }
+
+  cars.forEach(car=>{
+    const row = document.createElement('div');
+    row.className = 'car-row home-car-row';
+    const thumb = document.createElement('div');
+    thumb.className = 'car-thumb';
+    const photo = firstCarPhoto(car.photo_avto);
+    if(photo){
+      const image = document.createElement('img');
+      image.src = photo;
+      image.alt = [car.marka, car.model].filter(Boolean).join(' ') || 'Автомобиль';
+      image.loading = 'lazy';
+      image.onerror = ()=>{ image.replaceWith(document.createTextNode('🚘')); };
+      thumb.appendChild(image);
+    }else{
+      thumb.textContent = '🚘';
+    }
+
+    const details = document.createElement('div');
+    details.className = 'car-mid';
+    const name = document.createElement('div');
+    name.className = 'car-name';
+    name.textContent = [car.marka, car.model].filter(Boolean).join(' ') || 'Автомобиль';
+    const plate = document.createElement('div');
+    plate.className = 'car-plate';
+    plate.textContent = car.gos_nomer || 'Госномер не указан';
+    details.append(name, plate);
+    row.append(thumb, details);
+    list.appendChild(row);
+  });
+}
+
+async function loadPartnerCars(){
+  const list = document.getElementById('home-cars-list');
+  if(!AppState.uid || !AppState.sessionToken){
+    document.getElementById('home-car-count').textContent = '—';
+    list.innerHTML = '<div class="info-row"><span class="l">Войдите, чтобы загрузить автомобили</span></div>';
+    return;
+  }
+
+  list.innerHTML = '<div class="info-row"><span class="l">Загрузка автомобилей…</span></div>';
+  try{
+    const response = await fetch('/api/partner/cars', {
+      headers:{Authorization:`Bearer ${AppState.sessionToken}`}
+    });
+    const result = await response.json().catch(()=>({}));
+    if(!response.ok) throw new Error(result.error || 'Не удалось загрузить автомобили');
+    renderPartnerCars(Array.isArray(result.cars) ? result.cars : [], Number.isFinite(result.count) ? result.count : undefined);
+  }catch(error){
+    console.error('[Cars] Ошибка загрузки автомобилей:', error);
+    document.getElementById('home-car-count').textContent = '—';
+    list.innerHTML = '<div class="info-row"><span class="l">Не удалось загрузить автомобили</span></div>';
+  }
 }
 
 function refreshApplication(){

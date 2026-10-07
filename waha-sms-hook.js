@@ -48,6 +48,39 @@ function serviceHeaders() {
   };
 }
 
+function createSessionToken(userId) {
+  const payload = Buffer.from(JSON.stringify({
+    uid: userId,
+    exp: Date.now() + 30 * 24 * 60 * 60 * 1000
+  })).toString('base64url');
+  const signature = crypto.createHmac('sha256', supabaseServiceRoleKey).update(payload).digest('base64url');
+  return `${payload}.${signature}`;
+}
+
+function getSessionUserId(req) {
+  const [scheme, token] = String(req.headers.authorization || '').split(' ');
+  if (scheme !== 'Bearer' || !token) return null;
+
+  const [payload, signature] = token.split('.');
+  if (!payload || !signature) return null;
+
+  const expectedSignature = crypto.createHmac('sha256', supabaseServiceRoleKey).update(payload).digest();
+  let providedSignature;
+  try {
+    providedSignature = Buffer.from(signature, 'base64url');
+  } catch {
+    return null;
+  }
+  if (providedSignature.length !== expectedSignature.length || !crypto.timingSafeEqual(providedSignature, expectedSignature)) return null;
+
+  try {
+    const session = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    return typeof session.uid === 'string' && session.exp > Date.now() ? session.uid : null;
+  } catch {
+    return null;
+  }
+}
+
 async function findProfile(userId) {
   const columns = [
     'email', 'role', 'familiya', 'imya', 'otchestvo', 'IIN', 'telefon', 'created_at',
@@ -152,7 +185,32 @@ app.post('/api/auth/verify-otp', async (req, res) => {
   if (!profile) return res.status(404).json({ error: 'Профиль пользователя не найден' });
 
   otpStore.delete(phone);
-  return res.json({ ok: true, uid: pending.uid, profile });
+  return res.json({ ok: true, uid: pending.uid, profile, sessionToken: createSessionToken(pending.uid) });
+});
+
+app.get('/api/partner/cars', async (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: 'Сессия истекла. Войдите в аккаунт повторно' });
+
+  try {
+    const response = await axios.get(`${supabaseUrl}/rest/v1/cars`, {
+      params: {
+        hozyain_id: `eq.${userId}`,
+        select: 'id,marka,model,gos_nomer,photo_avto',
+        order: 'id.asc'
+      },
+      headers: { ...serviceHeaders(), Prefer: 'count=exact' },
+      timeout: 10000
+    });
+    const total = Number(response.headers['content-range']?.split('/')[1]);
+    return res.json({ cars: response.data || [], count: Number.isFinite(total) ? total : (response.data || []).length });
+  } catch (error) {
+    console.error('[Cars] Ошибка загрузки автомобилей:', {
+      status: error.response?.status || null,
+      details: error.response?.data || error.message
+    });
+    return res.status(502).json({ error: 'Не удалось загрузить автомобили партнёра' });
+  }
 });
 
 app.listen(port, '0.0.0.0', () => {
