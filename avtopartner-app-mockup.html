@@ -1001,7 +1001,10 @@ async function loadPartnerCars(){
     const response = await fetch(`/api/partner/cars?hozyain_id=${encodeURIComponent(AppState.uid)}`, {
       headers:{Authorization:`Bearer ${AppState.sessionToken}`}
     });
-    const result = await response.json().catch(()=>({}));
+    if(!(response.headers.get('content-type') || '').includes('application/json')){
+      throw new Error(`Сервис автомобилей вернул не JSON (HTTP ${response.status})`);
+    }
+    const result = await response.json();
     if(!response.ok) throw new Error(result.error || 'Не удалось загрузить автомобили');
     renderPartnerCars(Array.isArray(result.cars) ? result.cars : [], Number.isFinite(result.count) ? result.count : undefined);
   }catch(error){
