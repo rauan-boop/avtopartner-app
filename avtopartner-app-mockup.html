@@ -151,6 +151,7 @@
   .search-box input{ flex:1; min-width:0; border:0; outline:0; background:transparent; color:var(--text-hi); font:inherit;}
   .search-box input::placeholder{ color:var(--text-lo);}
 
+  .contract-month-heading{ margin:16px 0 10px; color:var(--text-lo); font-size:12.5px; font-weight:700;}
   .booking-card{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:14px; margin-bottom:12px; cursor:pointer; box-shadow:0 5px 14px rgba(31,41,55,.05);}
   .bk-top{ display:flex; align-items:center; gap:10px; margin-bottom:10px;}
   .bk-name{ font-size:14px; font-weight:700; color:var(--text-hi);}
@@ -377,7 +378,6 @@
         <div class="chip" data-status-filter="active" onclick="setPartnerContractStatusFilter('active',this)">Активные</div>
         <div class="chip" data-status-filter="completed" onclick="setPartnerContractStatusFilter('completed',this)">Завершённые</div>
       </div>
-      <div id="contracts-current-month" style="font-size:12.5px; color:var(--text-lo); font-weight:700; margin-bottom:10px;"></div>
       <div id="partner-contracts-list" aria-live="polite"><div class="info-row"><span class="l">Войдите, чтобы загрузить аренды</span></div></div>
       <button class="cta ghost" id="contracts-load-more" type="button" onclick="loadPartnerContracts()" style="display:none;">Показать еще</button>
     </div>
@@ -634,6 +634,7 @@ let partnerContractsCount = 0;
 let partnerContractsLoading = false;
 let partnerContractsLoaded = false;
 let partnerContractsRequestId = 0;
+let partnerContractsLastMonthKey = null;
 let partnerContractsStatusFilter = 'all';
 let partnerContractsModelSearch = '';
 let partnerContractsSearchTimer;
@@ -1050,9 +1051,28 @@ function formatContractDate(value){
   }).format(date).replace(',', '');
 }
 
-function updateContractsMonth(){
-  const month = new Intl.DateTimeFormat('ru-RU', {month:'long', year:'numeric'}).format(new Date());
-  document.getElementById('contracts-current-month').textContent = `📅 ${month[0].toLocaleUpperCase('ru-RU')}${month.slice(1)}`;
+function contractMonth(value){
+  if(!value) return {key:'unknown', label:'Дата не указана'};
+  const match = String(value || '').match(/^(\d{4})-(\d{2})/);
+  const date = match
+    ? new Date(Number(match[1]), Number(match[2]) - 1, 1)
+    : new Date(value);
+  if(Number.isNaN(date.getTime())) return {key:'unknown', label:'Дата не указана'};
+  const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+  const label = new Intl.DateTimeFormat('ru-RU', {month:'long', year:'numeric'}).format(date);
+  return {key, label:`${label[0].toLocaleUpperCase('ru-RU')}${label.slice(1)}`};
+}
+
+function appendContractWithMonth(contract, list){
+  const month = contractMonth(contract.date_nachala_arendy);
+  if(month.key !== partnerContractsLastMonthKey){
+    const heading = document.createElement('div');
+    heading.className = 'contract-month-heading';
+    heading.textContent = month.label;
+    list.appendChild(heading);
+    partnerContractsLastMonthKey = month.key;
+  }
+  list.appendChild(createContractCard(contract));
 }
 
 function contractAmount(contract){
@@ -1156,14 +1176,17 @@ async function loadPartnerContracts(reset = false){
       throw new Error('Сервис аренд вернул данные в неверном формате');
     }
 
-    if(requestOffset === 0) list.replaceChildren();
+    if(requestOffset === 0){
+      list.replaceChildren();
+      partnerContractsLastMonthKey = null;
+    }
     if(result.contracts.length === 0 && requestOffset === 0){
       const empty = document.createElement('div');
       empty.className = 'info-row';
       empty.textContent = 'Аренд пока нет';
       list.appendChild(empty);
     }else{
-      result.contracts.forEach(contract=>list.appendChild(createContractCard(contract)));
+      result.contracts.forEach(contract=>appendContractWithMonth(contract, list));
     }
     partnerContractsOffset = requestOffset + result.contracts.length;
     partnerContractsCount = result.count;
@@ -1300,7 +1323,6 @@ function renderCdContent(t){
 
 restoreProfile();
 renderFinance('all');
-updateContractsMonth();
 </script>
 </body>
 </html>
