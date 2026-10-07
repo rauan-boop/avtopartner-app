@@ -235,7 +235,7 @@ app.get('/api/partner/contracts', async (req, res) => {
         car_hozyain_id: `eq.${userId}`,
         compani_id: filterValue(profile.compani_id),
         city_id: filterValue(profile.city_id),
-        select: 'id,car_id,marka_avto,model_avto,gos_nomer,date_nachala_arendy,date_okonchaniya_arendy,vyezd_cena,stoimost_arendy_bez_depozita,status_dogovora',
+        select: 'id,marka_avto,model_avto,gos_nomer,date_nachala_arendy,date_okonchaniya_arendy,vyezd_cena,stoimost_arendy_bez_depozita,status_dogovora',
         order: 'date_nachala_arendy.desc,id.desc'
       },
       headers: {
@@ -250,26 +250,8 @@ app.get('/api/partner/contracts', async (req, res) => {
     const total = Number(response.headers['content-range']?.split('/')[1]);
     if (!Number.isFinite(total)) throw new Error('Supabase did not return the exact contract count');
 
-    const contracts = response.data || [];
-    const carIds = [...new Set(contracts.map(contract => contract.car_id).filter(id => id != null))];
-    let carsById = new Map();
-    if (carIds.length) {
-      const carsResponse = await axios.get(`${supabaseUrl}/rest/v1/cars`, {
-        params: {
-          id: `in.(${carIds.join(',')})`,
-          select: 'id,procent_ot_avto'
-        },
-        headers: serviceHeaders(),
-        timeout: 10000
-      });
-      carsById = new Map((carsResponse.data || []).map(car => [String(car.id), car.procent_ot_avto]));
-    }
-
     return res.json({
-      contracts: contracts.map(contract => ({
-        ...contract,
-        procent_ot_avto: carsById.get(String(contract.car_id)) ?? null
-      })),
+      contracts: response.data || [],
       count: total
     });
   } catch (error) {

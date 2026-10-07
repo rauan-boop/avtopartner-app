@@ -1040,12 +1040,11 @@ function updateContractsMonth(){
 }
 
 function contractAmount(contract){
-  if(contract.vyezd_cena == null || contract.stoimost_arendy_bez_depozita == null || contract.procent_ot_avto == null) return null;
+  if(contract.vyezd_cena == null || contract.stoimost_arendy_bez_depozita == null) return null;
   const exitPrice = Number(contract.vyezd_cena);
   const rentalPrice = Number(contract.stoimost_arendy_bez_depozita);
-  const commissionPercent = Number(contract.procent_ot_avto);
-  if(!Number.isFinite(exitPrice) || !Number.isFinite(rentalPrice) || !Number.isFinite(commissionPercent)) return null;
-  return (exitPrice + rentalPrice) * (100 - commissionPercent) / 100;
+  if(!Number.isFinite(exitPrice) || !Number.isFinite(rentalPrice)) return null;
+  return exitPrice + rentalPrice;
 }
 
 function createContractCard(contract){
@@ -1069,8 +1068,6 @@ function createContractCard(contract){
 
   const dates = document.createElement('div');
   dates.className = 'bk-dates';
-  dates.style.flexDirection = 'column';
-  dates.style.gap = '4px';
   const startDate = document.createElement('span');
   startDate.className = 'bk-date';
   startDate.textContent = `📅 ${formatContractDate(contract.date_nachala_arendy)}`;
