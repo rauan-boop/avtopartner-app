@@ -191,6 +191,9 @@ app.post('/api/auth/verify-otp', async (req, res) => {
 app.get('/api/partner/cars', async (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.status(401).json({ error: 'Сессия истекла. Войдите в аккаунт повторно' });
+  if (req.query.hozyain_id !== userId) {
+    return res.status(403).json({ error: 'ID партнёра не совпадает с текущей сессией' });
+  }
 
   try {
     const response = await axios.get(`${supabaseUrl}/rest/v1/cars`, {

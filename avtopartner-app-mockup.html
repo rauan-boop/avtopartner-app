@@ -982,7 +982,7 @@ async function loadPartnerCars(){
 
   list.innerHTML = '<div class="info-row"><span class="l">Загрузка автомобилей…</span></div>';
   try{
-    const response = await fetch('/api/partner/cars', {
+    const response = await fetch(`/api/partner/cars?hozyain_id=${encodeURIComponent(AppState.uid)}`, {
       headers:{Authorization:`Bearer ${AppState.sessionToken}`}
     });
     const result = await response.json().catch(()=>({}));
