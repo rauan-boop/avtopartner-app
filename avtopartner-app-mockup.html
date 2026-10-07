@@ -175,6 +175,12 @@
   .fs-menu{ width:34px; height:34px; border-radius:50%; background:var(--card); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--text-lo);}
   .fs-body{ flex:1; overflow-y:auto; padding:14px 18px 100px; scrollbar-width:none;}
   .fs-body::-webkit-scrollbar{display:none;}
+  #fs-app-state .fs-topbar{ padding-bottom:10px;}
+  #fs-app-state .fs-title-wrap{ text-align:left;}
+  .app-state-back{ margin-left:auto; flex-shrink:0;}
+  .app-state-row{ display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding:12px 0; border-bottom:1px solid var(--line);}
+  .app-state-key{ color:var(--text-lo); font-size:12px; font-weight:600; flex-shrink:0;}
+  .app-state-value{ color:var(--text-hi); font-size:12px; text-align:right; white-space:pre-wrap; overflow-wrap:anywhere; max-width:65%;}
 
   .auth-screen{ position:absolute; inset:0; z-index:250; background:var(--bg); display:flex; flex-direction:column; padding:28px 24px 12px; overflow-y:auto;}
   .auth-brand{ display:flex; align-items:center; gap:14px; color:var(--text-hi); font-size:24px; line-height:1; font-weight:800; letter-spacing:.01em; margin-bottom:8px; flex-shrink:0; position:relative; z-index:2;}
@@ -512,7 +518,7 @@
 
       <div class="white-card">
         <div class="sec-title" style="margin-bottom:2px; font-size:13.5px;">⚡ Быстрые действия</div>
-        <div class="quick-row" onclick="showToast('Открыты реквизиты и документы')">
+        <div class="quick-row" onclick="openAppStatePage()">
           <div class="quick-icon" style="background:var(--green-soft);">📄</div>
           <div><div class="quick-name">Мои реквизиты</div><div class="quick-sub">Банковские реквизиты и документы</div></div>
           <div class="quick-chev">›</div>
@@ -594,6 +600,16 @@
 
         <div id="cd-content"></div>
       </div>
+    </div>
+
+    <div class="fullscreen" id="fs-app-state" aria-label="Переменные приложения">
+      <div class="fs-topbar">
+        <div class="fs-title-wrap"><div class="fs-title">Переменные приложения</div></div>
+        <button class="fs-back app-state-back" type="button" aria-label="Вернуться на предыдущую страницу" title="Назад" onclick="closeAppStatePage()">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"></path><path d="m12 19-7-7 7-7"></path></svg>
+        </button>
+      </div>
+      <div class="fs-body" id="app-state-values"></div>
     </div>
 
     <div class="sheet-overlay" id="sheet-overlay" onclick="closeSheetOnOverlay(event)">
@@ -1034,6 +1050,34 @@ function closeSheetOnOverlay(e){ if(e.target.id==='sheet-overlay') closeSheet();
 
 let cdReturnTab = 'home';
 let cdCurrentKey = 'camry';
+let appStateReturnTab = 'profile';
+function openAppStatePage(){
+  appStateReturnTab = ['home','cars','finance','analytics','profile'].find(tab =>
+    document.getElementById(`screen-${tab}`).style.display !== 'none'
+  ) || 'profile';
+
+  const values = document.getElementById('app-state-values');
+  values.replaceChildren();
+  Object.entries(AppState).forEach(([key, value])=>{
+    const row = document.createElement('div');
+    row.className = 'app-state-row';
+    const name = document.createElement('div');
+    name.className = 'app-state-key';
+    name.textContent = key;
+    const content = document.createElement('div');
+    content.className = 'app-state-value';
+    content.textContent = value === null ? 'null' : (typeof value === 'string' ? value : JSON.stringify(value, null, 2));
+    row.append(name, content);
+    values.appendChild(row);
+  });
+
+  document.getElementById('fs-app-state').style.display = 'flex';
+}
+function closeAppStatePage(){
+  document.getElementById('fs-app-state').style.display = 'none';
+  switchTab(appStateReturnTab);
+}
+
 function openCarDetail(key, returnTab){
   cdReturnTab = returnTab; cdCurrentKey = key;
   const d = CARS[key];
