@@ -159,6 +159,8 @@
   .bk-dates{ display:flex; gap:16px; margin-bottom:10px;}
   .bk-date{ font-size:11.5px; color:var(--text-lo);}
   .bk-bottom{ display:flex; justify-content:space-between; align-items:center; padding-top:10px; border-top:1px solid var(--line);}
+  .bk-bottom.contract-bk-bottom{ justify-content:space-between;}
+  .badge.contract-status{ margin-left:0;}
   .bk-client{ font-size:12px; color:var(--text-hi); font-weight:600;}
   .bk-phone{ font-size:11px; color:var(--text-lo); margin-top:2px;}
   .bk-sum{ text-align:right;}
@@ -367,34 +369,16 @@
     <!-- ================= АВТОМОБИЛИ / АРЕНДЫ ================= -->
     <div class="screen" id="screen-cars" style="display:none;">
       <div class="page-title">Аренды моих машин</div>
-      <div class="search-box">🔍 <span>Поиск по клиенту или автомобилю</span></div>
+      <div class="search-box">🔍 <span>Поиск по автомобилю</span></div>
       <div class="chip-row">
         <div class="chip active" onclick="setChip(this)">Все</div>
         <div class="chip" onclick="setChip(this)">Активные</div>
         <div class="chip" onclick="setChip(this)">Завершённые</div>
         <div class="chip" onclick="showToast('Открыты фильтры')">⚙️ Фильтры</div>
       </div>
-      <div style="font-size:12.5px; color:var(--text-lo); font-weight:700; margin-bottom:10px;">Май 2024</div>
-
-      <div class="booking-card" onclick="openCarDetail('camry','cars')">
-        <div class="bk-top"><div class="car-thumb">🚘</div><div><div class="bk-name">Toyota Camry</div><div class="bk-plate">A123BC 777</div></div><span class="badge active">Активна</span></div>
-        <div class="bk-dates"><span class="bk-date">📅 25.05.2024 10:00</span><span class="bk-date">📅 31.05.2024 10:00</span></div>
-        <div class="bk-bottom"><div><div class="bk-client">Иван Петров</div><div class="bk-phone">+7 999 123-45-67</div></div><div class="bk-sum"><div class="l">Сумма</div><div class="n">25 000 ₸</div></div></div>
-      </div>
-
-      <div class="booking-card" onclick="openCarDetail('rio','cars')">
-        <div class="bk-top"><div class="car-thumb">🚙</div><div><div class="bk-name">Kia Rio</div><div class="bk-plate">B456DE 777</div></div><span class="badge active">Активна</span></div>
-        <div class="bk-dates"><span class="bk-date">📅 27.05.2024 09:00</span><span class="bk-date">📅 02.06.2024 09:00</span></div>
-        <div class="bk-bottom"><div><div class="bk-client">Анна Смирнова</div><div class="bk-phone">+7 987 654-32-10</div></div><div class="bk-sum"><div class="l">Сумма</div><div class="n">18 000 ₸</div></div></div>
-      </div>
-
-      <div class="booking-card" onclick="openCarDetail('camry','cars')">
-        <div class="bk-top"><div class="car-thumb">🚘</div><div><div class="bk-name">Toyota Camry</div><div class="bk-plate">A123BC 777</div></div><span class="badge done">Завершена</span></div>
-        <div class="bk-dates"><span class="bk-date">📅 10.05.2024 09:00</span><span class="bk-date">📅 15.05.2024 09:00</span></div>
-        <div class="bk-bottom"><div><div class="bk-client">Сергей К.</div><div class="bk-phone">+7 701 222-11-00</div></div><div class="bk-sum"><div class="l">Сумма</div><div class="n">15 000 ₸</div></div></div>
-      </div>
-
-      <button class="cta ghost" onclick="showToast('Загружены более ранние аренды')">Показать ещё</button>
+      <div id="contracts-current-month" style="font-size:12.5px; color:var(--text-lo); font-weight:700; margin-bottom:10px;"></div>
+      <div id="partner-contracts-list" aria-live="polite"><div class="info-row"><span class="l">Войдите, чтобы загрузить аренды</span></div></div>
+      <button class="cta ghost" id="contracts-load-more" type="button" onclick="loadPartnerContracts()" style="display:none;">Показать еще</button>
     </div>
 
     <!-- ================= ФИНАНСЫ ================= -->
@@ -643,6 +627,11 @@ const AppState = {
   sessionToken: null
 };
 let pendingPhone = '';
+const PARTNER_CONTRACTS_PAGE_SIZE = 3;
+let partnerContractsOffset = 0;
+let partnerContractsCount = 0;
+let partnerContractsLoading = false;
+let partnerContractsLoaded = false;
 const CARS = {
   camry:{
     name:'Toyota Camry', plate:'A123BC 777', photo:'🚘', year:'2021', color:'Чёрный', mileage:'68 500 км', status:'Активен', statusClass:'active',
@@ -721,6 +710,7 @@ function switchTab(tab){
     document.getElementById('nav-'+t).classList.toggle('active', t===tab);
   });
   document.getElementById('screen-'+tab).scrollTop = 0;
+  if(tab==='cars' && !partnerContractsLoaded && !partnerContractsLoading) loadPartnerContracts();
   if(tab==='finance') renderFinance(document.querySelector('#car-chip-row .chip.active')?.dataset.car || 'all');
   if(tab==='profile') renderProfile();
 }
@@ -929,6 +919,7 @@ function showAuthScreen(){
   pendingPhone = '';
   AppState.uid = null;
   AppState.sessionToken = null;
+  resetPartnerContracts();
   localStorage.removeItem(PROFILE_STORAGE_KEY);
 }
 
@@ -1011,6 +1002,161 @@ async function loadPartnerCars(){
     console.error('[Cars] Ошибка загрузки автомобилей:', error);
     document.getElementById('home-car-count').textContent = '—';
     list.innerHTML = '<div class="info-row"><span class="l">Не удалось загрузить автомобили</span></div>';
+  }
+}
+
+function resetPartnerContracts(){
+  partnerContractsOffset = 0;
+  partnerContractsCount = 0;
+  partnerContractsLoading = false;
+  partnerContractsLoaded = false;
+  const list = document.getElementById('partner-contracts-list');
+  if(list) list.innerHTML = '<div class="info-row"><span class="l">Войдите, чтобы загрузить аренды</span></div>';
+  const button = document.getElementById('contracts-load-more');
+  if(button){
+    button.style.display = 'none';
+    button.disabled = false;
+    button.textContent = 'Показать еще';
+  }
+}
+
+function formatContractDate(value){
+  if(!value) return '—';
+  const date = new Date(value);
+  if(Number.isNaN(date.getTime())) return '—';
+  return new Intl.DateTimeFormat('ru-RU', {
+    day:'2-digit',
+    month:'2-digit',
+    year:'numeric',
+    hour:'2-digit',
+    minute:'2-digit',
+    hourCycle:'h23'
+  }).format(date).replace(',', '');
+}
+
+function updateContractsMonth(){
+  const month = new Intl.DateTimeFormat('ru-RU', {month:'long', year:'numeric'}).format(new Date());
+  document.getElementById('contracts-current-month').textContent = `📅 ${month[0].toLocaleUpperCase('ru-RU')}${month.slice(1)}`;
+}
+
+function contractAmount(contract){
+  if(contract.vyezd_cena == null || contract.stoimost_arendy_bez_depozita == null || contract.procent_ot_avto == null) return null;
+  const exitPrice = Number(contract.vyezd_cena);
+  const rentalPrice = Number(contract.stoimost_arendy_bez_depozita);
+  const commissionPercent = Number(contract.procent_ot_avto);
+  if(!Number.isFinite(exitPrice) || !Number.isFinite(rentalPrice) || !Number.isFinite(commissionPercent)) return null;
+  return (exitPrice + rentalPrice) * (100 - commissionPercent) / 100;
+}
+
+function createContractCard(contract){
+  const card = document.createElement('div');
+  card.className = 'booking-card';
+
+  const top = document.createElement('div');
+  top.className = 'bk-top';
+  const thumb = document.createElement('div');
+  thumb.className = 'car-thumb';
+  thumb.textContent = '🚘';
+  const vehicle = document.createElement('div');
+  const name = document.createElement('div');
+  name.className = 'bk-name';
+  name.textContent = [contract.marka_avto, contract.model_avto].filter(Boolean).join(' ') || 'Автомобиль';
+  const plate = document.createElement('div');
+  plate.className = 'bk-plate';
+  plate.textContent = contract.gos_nomer || 'Госномер не указан';
+  vehicle.append(name, plate);
+  top.append(thumb, vehicle);
+
+  const dates = document.createElement('div');
+  dates.className = 'bk-dates';
+  dates.style.flexDirection = 'column';
+  dates.style.gap = '4px';
+  const startDate = document.createElement('span');
+  startDate.className = 'bk-date';
+  startDate.textContent = `📅 ${formatContractDate(contract.date_nachala_arendy)}`;
+  const endDate = document.createElement('span');
+  endDate.className = 'bk-date';
+  endDate.textContent = `📅 ${formatContractDate(contract.date_okonchaniya_arendy)}`;
+  dates.append(startDate, endDate);
+
+  const bottom = document.createElement('div');
+  bottom.className = 'bk-bottom contract-bk-bottom';
+  if(typeof contract.status_dogovora === 'boolean'){
+    const status = document.createElement('span');
+    status.className = `badge contract-status ${contract.status_dogovora ? 'active' : 'done'}`;
+    status.textContent = contract.status_dogovora ? 'Активен' : 'Завершен';
+    bottom.appendChild(status);
+  }
+  const total = document.createElement('div');
+  total.className = 'bk-sum';
+  const totalLabel = document.createElement('div');
+  totalLabel.className = 'l';
+  totalLabel.textContent = 'Сумма';
+  const totalValue = document.createElement('div');
+  totalValue.className = 'n';
+  const amount = contractAmount(contract);
+  totalValue.textContent = amount === null ? '—' : fmt(amount);
+  total.append(totalLabel, totalValue);
+  bottom.appendChild(total);
+  card.append(top, dates, bottom);
+  return card;
+}
+
+async function loadPartnerContracts(){
+  if(partnerContractsLoading) return;
+  const list = document.getElementById('partner-contracts-list');
+  const button = document.getElementById('contracts-load-more');
+  if(!AppState.uid || !AppState.sessionToken){
+    list.innerHTML = '<div class="info-row"><span class="l">Войдите, чтобы загрузить аренды</span></div>';
+    return;
+  }
+
+  const sessionToken = AppState.sessionToken;
+  partnerContractsLoading = true;
+  button.style.display = 'block';
+  button.disabled = true;
+  button.textContent = 'Загрузка…';
+  if(partnerContractsOffset === 0) list.innerHTML = '<div class="info-row"><span class="l">Загрузка аренд…</span></div>';
+
+  try{
+    const response = await fetch(`/api/partner/contracts?offset=${partnerContractsOffset}`, {
+      headers:{Authorization:`Bearer ${AppState.sessionToken}`}
+    });
+    if(!(response.headers.get('content-type') || '').includes('application/json')){
+      throw new Error(`Сервис аренд вернул не JSON (HTTP ${response.status})`);
+    }
+    const result = await response.json();
+    if(AppState.sessionToken !== sessionToken) return;
+    if(!response.ok) throw new Error(result.error || 'Не удалось загрузить аренды');
+    if(!Array.isArray(result.contracts) || !Number.isFinite(result.count)){
+      throw new Error('Сервис аренд вернул данные в неверном формате');
+    }
+
+    if(partnerContractsOffset === 0) list.replaceChildren();
+    if(result.contracts.length === 0 && partnerContractsOffset === 0){
+      const empty = document.createElement('div');
+      empty.className = 'info-row';
+      empty.textContent = 'Аренд пока нет';
+      list.appendChild(empty);
+    }else{
+      result.contracts.forEach(contract=>list.appendChild(createContractCard(contract)));
+    }
+    partnerContractsOffset += result.contracts.length;
+    partnerContractsCount = result.count;
+    partnerContractsLoaded = true;
+    button.style.display = partnerContractsOffset < partnerContractsCount ? 'block' : 'none';
+    button.textContent = 'Показать еще';
+  }catch(error){
+    console.error('[Contracts] Ошибка загрузки аренд:', error);
+    if(AppState.sessionToken !== sessionToken) return;
+    if(partnerContractsOffset === 0) list.innerHTML = '<div class="info-row"><span class="l">Не удалось загрузить аренды</span></div>';
+    button.style.display = 'block';
+    button.textContent = 'Повторить загрузку';
+  }finally{
+    if(AppState.sessionToken === sessionToken){
+      partnerContractsLoading = false;
+      button.disabled = false;
+    }
   }
 }
 
@@ -1129,6 +1275,7 @@ function renderCdContent(t){
 
 restoreProfile();
 renderFinance('all');
+updateContractsMonth();
 </script>
 </body>
 </html>

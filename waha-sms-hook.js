@@ -216,6 +216,71 @@ app.get('/api/partner/cars', async (req, res) => {
   }
 });
 
+app.get('/api/partner/contracts', async (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: 'Сессия истекла. Войдите в аккаунт повторно' });
+
+  const offset = Number(req.query.offset ?? 0);
+  if (!Number.isSafeInteger(offset) || offset < 0 || offset > 1000000) {
+    return res.status(400).json({ error: 'Некорректный номер страницы аренд' });
+  }
+
+  try {
+    const profile = await findProfile(userId);
+    if (!profile) return res.status(404).json({ error: 'Профиль пользователя не найден' });
+
+    const filterValue = value => value == null ? 'is.null' : `eq.${value}`;
+    const response = await axios.get(`${supabaseUrl}/rest/v1/contracts`, {
+      params: {
+        car_hozyain_id: `eq.${userId}`,
+        compani_id: filterValue(profile.compani_id),
+        city_id: filterValue(profile.city_id),
+        select: 'id,car_id,marka_avto,model_avto,gos_nomer,date_nachala_arendy,date_okonchaniya_arendy,vyezd_cena,stoimost_arendy_bez_depozita,status_dogovora',
+        order: 'date_nachala_arendy.desc,id.desc'
+      },
+      headers: {
+        ...serviceHeaders(),
+        Prefer: 'count=exact',
+        'Range-Unit': 'items',
+        Range: `${offset}-${offset + 2}`
+      },
+      timeout: 10000
+    });
+
+    const total = Number(response.headers['content-range']?.split('/')[1]);
+    if (!Number.isFinite(total)) throw new Error('Supabase did not return the exact contract count');
+
+    const contracts = response.data || [];
+    const carIds = [...new Set(contracts.map(contract => contract.car_id).filter(id => id != null))];
+    let carsById = new Map();
+    if (carIds.length) {
+      const carsResponse = await axios.get(`${supabaseUrl}/rest/v1/cars`, {
+        params: {
+          id: `in.(${carIds.join(',')})`,
+          select: 'id,procent_ot_avto'
+        },
+        headers: serviceHeaders(),
+        timeout: 10000
+      });
+      carsById = new Map((carsResponse.data || []).map(car => [String(car.id), car.procent_ot_avto]));
+    }
+
+    return res.json({
+      contracts: contracts.map(contract => ({
+        ...contract,
+        procent_ot_avto: carsById.get(String(contract.car_id)) ?? null
+      })),
+      count: total
+    });
+  } catch (error) {
+    console.error('[Contracts] Ошибка загрузки аренд:', {
+      status: error.response?.status || null,
+      details: error.response?.data || error.message
+    });
+    return res.status(502).json({ error: 'Не удалось загрузить аренды партнёра' });
+  }
+});
+
 app.listen(port, '0.0.0.0', () => {
   console.info(`Phone authorization service listening on port ${port}`);
 });
