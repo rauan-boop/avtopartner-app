@@ -248,6 +248,7 @@
   .auth-button{ width:100%; border:0; border-radius:14px; background:var(--green); color:#fff; padding:14px 16px; margin-top:14px; font:inherit; font-size:13px; font-weight:800; cursor:pointer; box-shadow:0 10px 20px -12px rgba(5,150,105,.9); transition:opacity .2s, transform .2s;}
   .auth-button:disabled{ background:#A7F3D0; color:#6B7280; cursor:not-allowed; box-shadow:none;}
   .auth-button:not(:disabled):active{ transform:scale(.98);}
+  .auth-button.passkey{ margin-top:0; margin-bottom:18px; background:var(--card); color:var(--blue2); border:1px solid var(--line); box-shadow:0 5px 14px rgba(31,41,55,.05);}
   .auth-note{ color:var(--text-lo); font-size:11px; line-height:1.5; text-align:center; margin-top:16px;}
   .auth-demo-button{ display:block; margin:10px auto 0; padding:4px 0; border:0; background:none; color:var(--text-lo); font:inherit; font-size:11px; font-weight:700; cursor:pointer;}
   .auth-note strong{ color:var(--text-hi);}
@@ -335,15 +336,16 @@
       <div class="auth-tagline">RONAT-Astana: открыто, честно, прозрачно</div>
 
       <div class="auth-content" id="phone-step">
-        <h1 class="auth-title">Войдите по номеру телефона</h1>
-        <p class="auth-text">Укажите номер телефона, зарегистрированный в R-invest.</p>
+        <h1 class="auth-title" id="auth-title">Войдите в R-invest</h1>
+        <p class="auth-text" id="auth-intro">Используйте ключ входа на устройстве или войдите по номеру телефона.</p>
+        <button class="auth-button passkey" id="passkey-login-button" type="button" onclick="loginWithPasskey()">🔐 Войти по Face ID или ключу</button>
+        <div class="auth-error" id="passkey-error" aria-live="polite"></div>
         <form class="auth-form" onsubmit="checkPhone(event)">
           <label class="auth-label" for="phone-number">Номер телефона</label>
           <div class="phone-input-wrap"><span class="phone-prefix">+7</span><input class="auth-input" id="phone-number" type="tel" inputmode="numeric" autocomplete="tel" maxlength="13" placeholder="___ ___ __ __" oninput="handlePhoneInput(this)"></div>
           <div class="auth-error" id="phone-error" aria-live="polite"></div>
           <button class="auth-button" id="check-phone-button" type="submit" disabled>Отправить код</button>
           <p class="auth-note">Продолжая, вы соглашаетесь с условиями обработки персональных данных.</p>
-          <button class="auth-demo-button" type="button" onclick="openMainScreen()">Перейти в приложение</button>
         </form>
       </div>
 
@@ -939,6 +941,148 @@ function handleOtpInput(input){
   document.getElementById('login-button').disabled = input.value.length !== 6;
 }
 
+function webAuthnAvailable(){
+  return window.isSecureContext && Boolean(window.PublicKeyCredential && navigator.credentials);
+}
+
+function base64urlToBuffer(value){
+  const base64 = value.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = base64 + '='.repeat((4 - base64.length % 4) % 4);
+  const binary = atob(padded);
+  return Uint8Array.from(binary, character=>character.charCodeAt(0));
+}
+
+function bufferToBase64url(value){
+  const bytes = new Uint8Array(value);
+  let binary = '';
+  bytes.forEach(byte=>binary += String.fromCharCode(byte));
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function serializePublicKeyCredential(credential){
+  const serialized = {
+    id: credential.id,
+    rawId: bufferToBase64url(credential.rawId),
+    type: credential.type,
+    response: {}
+  };
+  if(credential.response.attestationObject){
+    serialized.response.attestationObject = bufferToBase64url(credential.response.attestationObject);
+    serialized.response.clientDataJSON = bufferToBase64url(credential.response.clientDataJSON);
+    serialized.response.transports = credential.response.getTransports?.() || [];
+  }else{
+    serialized.response.authenticatorData = bufferToBase64url(credential.response.authenticatorData);
+    serialized.response.clientDataJSON = bufferToBase64url(credential.response.clientDataJSON);
+    serialized.response.signature = bufferToBase64url(credential.response.signature);
+    serialized.response.userHandle = credential.response.userHandle
+      ? bufferToBase64url(credential.response.userHandle)
+      : null;
+  }
+  return serialized;
+}
+
+async function completeAuthentication(result, viaOtp){
+  Object.keys(AppState).forEach(key=>{
+    AppState[key] = key === 'sessionToken'
+      ? result.sessionToken
+      : (result.profile?.[key] ?? (key === 'uid' ? result.uid : null));
+  });
+  updateGreeting();
+  renderProfile();
+  saveProfileSnapshot();
+  loadPartnerCars();
+  refreshProfileFromServer();
+  document.getElementById('auth-screen').style.display = 'none';
+  switchTab('home');
+  if(viaOtp) promptPasskeyEnrollmentIfNeeded();
+}
+
+async function loginWithPasskey(){
+  const button = document.getElementById('passkey-login-button');
+  const errorElement = document.getElementById('passkey-error');
+  errorElement.textContent = '';
+  if(!webAuthnAvailable()){
+    errorElement.textContent = 'Вход по ключу доступен в поддерживаемом браузере по защищённому HTTPS-соединению.';
+    return;
+  }
+  button.disabled = true;
+  button.textContent = 'Подтвердите вход на устройстве…';
+  try{
+    const optionsResponse = await fetch('/api/auth/passkey/login/options', {method:'POST'});
+    const options = await optionsResponse.json();
+    if(!optionsResponse.ok) throw new Error(options.error || 'Не удалось начать вход по ключу.');
+    const challenge = options.challenge;
+    options.challenge = base64urlToBuffer(options.challenge);
+    if(options.allowCredentials){
+      options.allowCredentials = options.allowCredentials.map(item=>({...item, id:base64urlToBuffer(item.id)}));
+    }
+    const credential = await navigator.credentials.get({publicKey:options});
+    if(!credential) throw new Error('Устройство не подтвердило вход.');
+    const response = await fetch('/api/auth/passkey/login/verify', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({challenge, credential:serializePublicKeyCredential(credential)})
+    });
+    const result = await response.json();
+    if(!response.ok) throw new Error(result.error || 'Не удалось проверить ключ входа.');
+    await completeAuthentication(result, false);
+  }catch(error){
+    if(error.name === 'NotAllowedError'){
+      errorElement.textContent = 'Вход отменён. Можно повторить попытку или войти по номеру телефона.';
+    }else{
+      console.error('[Passkey] Ошибка входа:', error);
+      errorElement.textContent = error.message || 'Не удалось войти по ключу. Воспользуйтесь входом по телефону.';
+    }
+  }finally{
+    button.disabled = !webAuthnAvailable();
+    button.innerHTML = '🔐 Войти по Face ID или ключу';
+  }
+}
+
+async function promptPasskeyEnrollmentIfNeeded(){
+  if(!webAuthnAvailable() || !AppState.sessionToken) return;
+  try{
+    const response = await fetch('/api/auth/passkey/status', {
+      headers:{Authorization:`Bearer ${AppState.sessionToken}`}
+    });
+    const result = await response.json();
+    if(!response.ok) throw new Error(result.error || 'Не удалось проверить настройки ключа.');
+    if(result.hasPasskey) return;
+    if(window.confirm('Настроить быстрый вход на этом устройстве через Face ID, отпечаток или блокировку экрана? В следующий раз можно будет войти без кода из WhatsApp.')){
+      await registerPasskey();
+    }
+  }catch(error){
+    console.error('[Passkey] Не удалось проверить наличие ключа входа:', error);
+    showToast(error.message || 'Не удалось настроить быстрый вход');
+  }
+}
+
+async function registerPasskey(){
+  if(!webAuthnAvailable()) throw new Error('Настройка ключа доступна только по HTTPS в поддерживаемом браузере.');
+  if(!AppState.sessionToken) throw new Error('Сначала войдите по номеру телефона и коду.');
+  const headers = {
+    'Content-Type':'application/json',
+    Authorization:`Bearer ${AppState.sessionToken}`
+  };
+  const optionsResponse = await fetch('/api/auth/passkey/register/options', {method:'POST', headers});
+  const options = await optionsResponse.json();
+  if(!optionsResponse.ok) throw new Error(options.error || 'Не удалось начать настройку ключа.');
+  options.challenge = base64urlToBuffer(options.challenge);
+  options.user.id = base64urlToBuffer(options.user.id);
+  options.excludeCredentials = (options.excludeCredentials || []).map(item=>({...item, id:base64urlToBuffer(item.id)}));
+  const challenge = bufferToBase64url(options.challenge);
+  const credential = await navigator.credentials.create({publicKey:options});
+  if(!credential) throw new Error('Устройство не создало ключ входа.');
+  const response = await fetch('/api/auth/passkey/register/verify', {
+    method:'POST',
+    headers,
+    body:JSON.stringify({challenge, credential:serializePublicKeyCredential(credential)})
+  });
+  const result = await response.json();
+  if(!response.ok) throw new Error(result.error || 'Не удалось сохранить ключ входа.');
+  showToast('Быстрый вход на этом устройстве настроен');
+}
+
 async function verifyOtp(event){
   event.preventDefault();
   const otpInput = document.getElementById('otp-input');
@@ -959,18 +1103,7 @@ async function verifyOtp(event){
       return;
     }
 
-    Object.keys(AppState).forEach(key=>{
-      AppState[key] = key === 'sessionToken'
-        ? result.sessionToken
-        : (result.profile?.[key] ?? (key === 'uid' ? result.uid : null));
-    });
-    updateGreeting();
-    renderProfile();
-    localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(AppState));
-    loadPartnerCars();
-    refreshProfileFromServer();
-    document.getElementById('auth-screen').style.display = 'none';
-    switchTab('home');
+    await completeAuthentication(result, true);
   }catch(error){
     console.error('[Auth] Ошибка проверки OTP:', error);
     otpError.textContent = error instanceof TypeError
@@ -986,6 +1119,11 @@ function updateGreeting(){
   document.getElementById('greeting-hi').textContent = firstName
     ? `Здравствуйте, ${firstName}!`
     : 'Здравствуйте!';
+}
+
+function saveProfileSnapshot(){
+  const savedProfile = {...AppState, sessionToken:null};
+  localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(savedProfile));
 }
 
 function renderProfile(){
@@ -1143,7 +1281,7 @@ async function saveMyData(event){
       }
     });
     myDataAvatarValue = null;
-    localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(AppState));
+    saveProfileSnapshot();
     updateGreeting();
     renderProfile();
     renderAvatar(document.getElementById('my-data-avatar'), AppState.avatar, '--');
@@ -1207,16 +1345,18 @@ function formatProfileDate(value){
 }
 
 function restoreProfile(){
+  document.getElementById('passkey-login-button').disabled = !webAuthnAvailable();
   try{
     const savedProfile = JSON.parse(localStorage.getItem(PROFILE_STORAGE_KEY) || 'null');
     if(!savedProfile || typeof savedProfile !== 'object') return;
     Object.keys(AppState).forEach(key=>{
-      AppState[key] = savedProfile[key] ?? null;
+      AppState[key] = key === 'sessionToken' ? null : (savedProfile[key] ?? null);
     });
+    saveProfileSnapshot();
+    document.getElementById('auth-title').textContent = 'С возвращением!';
+    document.getElementById('auth-intro').textContent = 'Войдите по ключу на устройстве или подтвердите номер телефона.';
     updateGreeting();
     renderProfile();
-    loadPartnerCars();
-    refreshProfileFromServer();
   }catch(error){
     console.warn('[Profile] Не удалось восстановить профиль:', error);
   }
@@ -1236,7 +1376,7 @@ async function refreshProfileFromServer(){
     Object.keys(AppState).forEach(key=>{
       if(key !== 'sessionToken' && key !== 'uid') AppState[key] = result.profile[key] ?? null;
     });
-    localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(AppState));
+    saveProfileSnapshot();
     updateGreeting();
     renderProfile();
   }catch(error){
@@ -1248,14 +1388,17 @@ function showAuthScreen(){
   document.getElementById('auth-screen').style.display = 'flex';
   document.getElementById('phone-step').style.display = 'block';
   document.getElementById('otp-step').style.display = 'none';
+  document.getElementById('auth-title').textContent = 'Войдите в R-invest';
+  document.getElementById('auth-intro').textContent = 'Используйте ключ входа на устройстве или войдите по номеру телефона.';
+  document.getElementById('passkey-error').textContent = '';
+  document.getElementById('passkey-login-button').disabled = !webAuthnAvailable();
   document.getElementById('phone-number').value = '';
   document.getElementById('check-phone-button').disabled = true;
   document.getElementById('phone-error').textContent = '';
   document.getElementById('otp-error').textContent = '';
   document.getElementById('otp-input').value = '';
   pendingPhone = '';
-  AppState.uid = null;
-  AppState.sessionToken = null;
+  Object.keys(AppState).forEach(key=>AppState[key] = null);
   subleaseCountRequestId++;
   subleaseCountLoading = false;
   subleaseCountLoadedForToken = null;
@@ -1536,11 +1679,6 @@ function refreshApplication(){
   const url = new URL(window.location.href);
   url.searchParams.set('_refresh', Date.now().toString());
   window.location.replace(url.toString());
-}
-
-function openMainScreen(){
-  document.getElementById('auth-screen').style.display = 'none';
-  switchTab('home');
 }
 
 let toastTimer;

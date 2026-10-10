@@ -1,6 +1,12 @@
 const express = require('express');
 const axios = require('axios');
 const crypto = require('crypto');
+const {
+  generateAuthenticationOptions,
+  generateRegistrationOptions,
+  verifyAuthenticationResponse,
+  verifyRegistrationResponse
+} = require('@simplewebauthn/server');
 
 const app = express();
 const port = Number(process.env.PORT || 3001);
@@ -11,6 +17,10 @@ const wahaSession = process.env.WAHA_SESSION || 'default';
 const wahaApiKey = process.env.WAHA_API_KEY || '';
 const otpTtlMs = 5 * 60 * 1000;
 const otpStore = new Map();
+const webauthnRpId = process.env.WEBAUTHN_RP_ID || 'partner.ronat.asia';
+const webauthnOrigin = process.env.WEBAUTHN_ORIGIN || 'https://partner.ronat.asia';
+const webauthnChallengeTtlMs = 5 * 60 * 1000;
+const webauthnChallenges = new Map();
 
 app.use(express.json({ limit: '1mb' }));
 
@@ -93,6 +103,43 @@ async function findProfile(userId) {
     timeout: 10000
   });
   return response.data?.[0] || null;
+}
+
+async function findWebAuthnCredentials(userId) {
+  const response = await axios.get(`${supabaseUrl}/rest/v1/webauthn_credentials`, {
+    params: {
+      user_id: `eq.${userId}`,
+      select: 'credential_id,public_key,counter,transports'
+    },
+    headers: serviceHeaders(),
+    timeout: 10000
+  });
+  return response.data || [];
+}
+
+function saveWebAuthnChallenge(challenge, type, userId = null) {
+  const now = Date.now();
+  for (const [key, value] of webauthnChallenges) {
+    if (value.expiresAt <= now) webauthnChallenges.delete(key);
+  }
+  webauthnChallenges.set(challenge, { type, userId, expiresAt: now + webauthnChallengeTtlMs });
+}
+
+function consumeWebAuthnChallenge(challenge, type, userId = null) {
+  const saved = webauthnChallenges.get(challenge);
+  webauthnChallenges.delete(challenge);
+  return Boolean(saved && saved.type === type && saved.userId === userId && saved.expiresAt > Date.now());
+}
+
+function webauthnErrorResponse(res, error, label) {
+  console.error(`[Passkey] Ошибка ${label}:`, {
+    status: error.response?.status || null,
+    details: error.response?.data || error.message
+  });
+  if (error.response?.status === 404) {
+    return res.status(503).json({ error: 'Хранилище ключей входа не настроено. Выполните миграцию passkeys.sql в Supabase.' });
+  }
+  return res.status(502).json({ error: `Не удалось выполнить ${label}. Проверьте настройки WebAuthn и Supabase.` });
 }
 
 async function sendOtp(phone, otp) {
@@ -186,6 +233,178 @@ app.post('/api/auth/verify-otp', async (req, res) => {
 
   otpStore.delete(phone);
   return res.json({ ok: true, uid: pending.uid, profile, sessionToken: createSessionToken(pending.uid) });
+});
+
+app.get('/api/auth/passkey/status', async (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: 'Сессия истекла. Войдите по номеру телефона' });
+  try {
+    const credentials = await findWebAuthnCredentials(userId);
+    return res.json({ hasPasskey: credentials.length > 0 });
+  } catch (error) {
+    return webauthnErrorResponse(res, error, 'проверку ключа входа');
+  }
+});
+
+app.post('/api/auth/passkey/register/options', async (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: 'Сессия истекла. Войдите по номеру телефона' });
+  try {
+    const profile = await findProfile(userId);
+    if (!profile) return res.status(404).json({ error: 'Профиль пользователя не найден' });
+    const credentials = await findWebAuthnCredentials(userId);
+    const options = await generateRegistrationOptions({
+      rpName: 'R-invest',
+      rpID: webauthnRpId,
+      userID: Buffer.from(userId, 'utf8'),
+      userName: profile.telefon || profile.email || userId,
+      userDisplayName: [profile.familiya, profile.imya].filter(Boolean).join(' ') || 'Партнёр R-invest',
+      attestationType: 'none',
+      authenticatorSelection: {
+        authenticatorAttachment: 'platform',
+        residentKey: 'required',
+        userVerification: 'required'
+      },
+      excludeCredentials: credentials.map(credential => ({
+        id: credential.credential_id,
+        transports: credential.transports
+      }))
+    });
+    saveWebAuthnChallenge(options.challenge, 'registration', userId);
+    return res.json(options);
+  } catch (error) {
+    return webauthnErrorResponse(res, error, 'подготовку passkey');
+  }
+});
+
+app.post('/api/auth/passkey/register/verify', async (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: 'Сессия истекла. Войдите по номеру телефона' });
+  const { challenge, credential } = req.body || {};
+  if (typeof challenge !== 'string' || !credential || typeof credential !== 'object') {
+    return res.status(400).json({ error: 'Не переданы данные ключа входа' });
+  }
+  if (!consumeWebAuthnChallenge(challenge, 'registration', userId)) {
+    return res.status(400).json({ error: 'Запрос регистрации истёк. Повторите настройку ключа' });
+  }
+
+  try {
+    const verification = await verifyRegistrationResponse({
+      response: credential,
+      expectedChallenge: challenge,
+      expectedOrigin: webauthnOrigin,
+      expectedRPID: webauthnRpId,
+      requireUserVerification: true
+    });
+    if (!verification.verified || !verification.registrationInfo) {
+      return res.status(400).json({ error: 'Не удалось подтвердить ключ входа на устройстве' });
+    }
+    const registration = verification.registrationInfo;
+    const credentialId = Buffer.from(registration.credentialID).toString('base64url');
+    const existing = await axios.get(`${supabaseUrl}/rest/v1/webauthn_credentials`, {
+      params: { credential_id: `eq.${credentialId}`, select: 'user_id', limit: 1 },
+      headers: serviceHeaders(),
+      timeout: 10000
+    });
+    if (existing.data?.length && existing.data[0].user_id !== userId) {
+      return res.status(409).json({ error: 'Этот ключ уже зарегистрирован для другого аккаунта' });
+    }
+    if (existing.data?.length) {
+      return res.json({ verified: true });
+    }
+    await axios.post(`${supabaseUrl}/rest/v1/webauthn_credentials`, {
+      credential_id: credentialId,
+      user_id: userId,
+      public_key: Buffer.from(registration.credentialPublicKey).toString('base64url'),
+      counter: registration.counter,
+      transports: credential.response.transports || []
+    }, {
+      headers: { ...serviceHeaders(), Prefer: 'return=minimal' },
+      timeout: 10000
+    });
+    return res.json({ verified: true });
+  } catch (error) {
+    return webauthnErrorResponse(res, error, 'регистрацию ключа входа');
+  }
+});
+
+app.post('/api/auth/passkey/login/options', async (req, res) => {
+  try {
+    const options = await generateAuthenticationOptions({
+      rpID: webauthnRpId,
+      userVerification: 'required',
+      allowCredentials: []
+    });
+    saveWebAuthnChallenge(options.challenge, 'authentication');
+    return res.json(options);
+  } catch (error) {
+    return webauthnErrorResponse(res, error, 'подготовку входа по passkey');
+  }
+});
+
+app.post('/api/auth/passkey/login/verify', async (req, res) => {
+  const { challenge, credential } = req.body || {};
+  if (typeof challenge !== 'string' || !credential || typeof credential.id !== 'string') {
+    return res.status(400).json({ error: 'Не переданы данные для входа по ключу' });
+  }
+  if (!consumeWebAuthnChallenge(challenge, 'authentication')) {
+    return res.status(400).json({ error: 'Запрос входа истёк. Попробуйте ещё раз' });
+  }
+
+  try {
+    const credentialResponse = await axios.get(`${supabaseUrl}/rest/v1/webauthn_credentials`, {
+      params: {
+        credential_id: `eq.${credential.id}`,
+        select: 'credential_id,user_id,public_key,counter,transports',
+        limit: 1
+      },
+      headers: serviceHeaders(),
+      timeout: 10000
+    });
+    const stored = credentialResponse.data?.[0];
+    if (!stored) return res.status(404).json({ error: 'Ключ не найден. Войдите по номеру телефона и настройте его заново' });
+
+    const verification = await verifyAuthenticationResponse({
+      response: credential,
+      expectedChallenge: challenge,
+      expectedOrigin: webauthnOrigin,
+      expectedRPID: webauthnRpId,
+      authenticator: {
+        credentialID: Buffer.from(stored.credential_id, 'base64url'),
+        credentialPublicKey: Buffer.from(stored.public_key, 'base64url'),
+        counter: Number(stored.counter),
+        transports: stored.transports
+      },
+      requireUserVerification: true
+    });
+    if (!verification.verified) return res.status(401).json({ error: 'Не удалось подтвердить ключ входа' });
+
+    const userHandle = credential.response?.userHandle;
+    if (!userHandle || Buffer.from(userHandle, 'base64url').toString('utf8') !== stored.user_id) {
+      return res.status(401).json({ error: 'Ключ не подтвердил владельца аккаунта' });
+    }
+    const newCounter = verification.authenticationInfo.newCounter;
+    await axios.patch(`${supabaseUrl}/rest/v1/webauthn_credentials`, {
+      counter: newCounter
+    }, {
+      params: { credential_id: `eq.${stored.credential_id}` },
+      headers: { ...serviceHeaders(), Prefer: 'return=minimal' },
+      timeout: 10000
+    });
+    const profile = await findProfile(stored.user_id);
+    if (!profile) return res.status(404).json({ error: 'Профиль пользователя не найден' });
+    return res.json({
+      ok: true,
+      uid: stored.user_id,
+      profile,
+      sessionToken: createSessionToken(stored.user_id)
+    });
+  } catch (error) {
+    if (error.name === 'WebAuthnError') {
+      return res.status(401).json({ error: 'Ключ не подошёл. Попробуйте ещё раз или войдите по телефону' });
+    }
+    return webauthnErrorResponse(res, error, 'вход по passkey');
+  }
 });
 
 app.get('/api/profile', async (req, res) => {
