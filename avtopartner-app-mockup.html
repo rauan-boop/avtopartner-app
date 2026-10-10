@@ -1131,8 +1131,11 @@ async function saveMyData(event){
       },
       body:JSON.stringify(updates)
     });
-    const result = await response.json().catch(()=>({}));
-    if(!response.ok) throw new Error(result.error || 'Не удалось сохранить данные.');
+    if(!(response.headers.get('content-type') || '').includes('application/json')){
+      throw new Error(`Сервис профиля недоступен (HTTP ${response.status}). Проверьте подключение API /api/profile.`);
+    }
+    const result = await response.json();
+    if(!response.ok) throw new Error(result.error || `Не удалось сохранить данные (HTTP ${response.status}).`);
     if(!result.profile) throw new Error('Сервис не вернул обновлённые данные профиля.');
     Object.keys(AppState).forEach(key=>{
       if(key !== 'sessionToken' && Object.prototype.hasOwnProperty.call(result.profile, key)){
