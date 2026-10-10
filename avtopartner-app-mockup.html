@@ -194,6 +194,20 @@
   .sublease-progress-fill.warning{ background:#F0A83D;}
   .sublease-progress-fill.critical{ background:var(--red);}
   .sublease-no-contract{ color:var(--text-lo); font-size:12px; padding:10px 0; border-top:1px solid var(--line);}
+  .profile-avatar-image{ width:68px; height:68px; border-radius:50%; object-fit:cover; background:rgba(255,255,255,.2);}
+  .my-data-avatar-wrap{ display:flex; flex-direction:column; align-items:center; gap:10px; margin:8px 0 22px;}
+  .my-data-avatar{ width:120px; height:120px; border-radius:50%; object-fit:cover; background:var(--blue-soft); color:var(--blue2); display:flex; align-items:center; justify-content:center; font-size:38px; font-weight:800; overflow:hidden;}
+  .my-data-avatar img{ width:100%; height:100%; object-fit:cover;}
+  .my-data-avatar .profile-avatar-image{ width:120px; height:120px;}
+  .my-data-action{ min-height:42px; padding:10px 16px; border:0; border-radius:12px; background:var(--blue2); color:#fff; font:inherit; font-size:13px; font-weight:700; cursor:pointer;}
+  .my-data-action:disabled{ opacity:.55; cursor:wait;}
+  .my-data-action.secondary{ background:var(--blue-soft); color:var(--blue2);}
+  .my-data-fields{ background:var(--card); border:1px solid var(--line); border-radius:18px; padding:4px 16px; box-shadow:0 5px 14px rgba(31,41,55,.05);}
+  .my-data-field{ display:block; padding:12px 0; border-bottom:1px solid var(--line);}
+  .my-data-field:last-child{ border-bottom:0;}
+  .my-data-field-label{ display:block; margin-bottom:6px; color:var(--text-lo); font-size:11px; font-weight:700;}
+  .my-data-field input{ width:100%; border:0; outline:0; color:var(--text-hi); background:transparent; font:inherit; font-size:14px; font-weight:600;}
+  .my-data-message{ min-height:20px; margin-top:10px; color:var(--text-lo); font-size:12px; text-align:center;}
 
   /* car detail full screen */
   .fullscreen{ position:absolute; inset:0; background:var(--bg); z-index:40; display:none; flex-direction:column;}
@@ -508,9 +522,9 @@
         <div class="bell" onclick="showToast('3 новых уведомления')">🔔<span class="dot">3</span></div>
       </div>
 
-      <div class="hero" style="cursor:default;" onclick="showToast('Редактирование профиля')">
+      <div class="hero" style="cursor:pointer;" onclick="openMyDataPage()">
         <div style="display:flex; align-items:center; gap:14px;">
-          <div id="profile-avatar" style="width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:18px;flex-shrink:0;">--</div>
+          <div id="profile-avatar" style="width:68px;height:68px;border-radius:50%;background:rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:20px;flex-shrink:0;overflow:hidden;">--</div>
           <div style="flex:1;">
             <div style="color:#fff; font-size:16px; font-weight:800;"><span id="profile-first-name">—</span> <span id="profile-last-name">—</span></div>
             <div style="color:#B9C6F7; font-size:12px; margin-top:2px;">Партнёр</div>
@@ -624,6 +638,33 @@
       <div class="fs-body" id="app-state-values"></div>
     </div>
 
+    <div class="fullscreen" id="fs-my-data" aria-label="Мои данные">
+      <div class="fs-topbar">
+        <div class="fs-title-wrap sublease-contracts-title"><div class="fs-title">Мои данные</div></div>
+        <button class="fs-back" type="button" aria-label="Назад" title="Назад" onclick="closeMyDataPage()">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"></path><path d="m12 19-7-7 7-7"></path></svg>
+        </button>
+      </div>
+      <div class="fs-body">
+        <div class="my-data-avatar-wrap">
+          <div class="my-data-avatar" id="my-data-avatar">--</div>
+          <input id="my-data-avatar-file" type="file" accept="image/jpeg,image/png,image/webp" hidden onchange="handleProfileAvatarChange(this)">
+          <button class="my-data-action secondary" type="button" onclick="document.getElementById('my-data-avatar-file').click()">Изменить аватар</button>
+        </div>
+        <form id="my-data-form" onsubmit="saveMyData(event)">
+          <div class="my-data-fields">
+            <label class="my-data-field"><span class="my-data-field-label">Фамилия</span><input name="familiya" autocomplete="family-name" maxlength="100"></label>
+            <label class="my-data-field"><span class="my-data-field-label">Имя</span><input name="imya" autocomplete="given-name" maxlength="100"></label>
+            <label class="my-data-field"><span class="my-data-field-label">Отчество</span><input name="otchestvo" autocomplete="additional-name" maxlength="100"></label>
+            <label class="my-data-field"><span class="my-data-field-label">ИИН</span><input name="IIN" inputmode="numeric" maxlength="12" pattern="[0-9]{12}" title="ИИН должен содержать 12 цифр"></label>
+            <label class="my-data-field"><span class="my-data-field-label">Дата рождения</span><input name="dateRozhdeniya" type="date"></label>
+          </div>
+          <div class="my-data-message" id="my-data-message" role="status" aria-live="polite"></div>
+          <button class="my-data-action" id="my-data-save" type="submit" style="width:100%;margin-top:8px;">Сохранить изменения</button>
+        </form>
+      </div>
+    </div>
+
     <div class="fullscreen" id="fs-sublease-contracts" aria-label="Договора субаренды">
       <div class="fs-topbar">
         <div class="fs-title-wrap sublease-contracts-title"><div class="fs-title">Договора субаренды</div></div>
@@ -661,6 +702,7 @@ const AppState = {
   imya: null,
   otchestvo: null,
   IIN: null,
+  dateRozhdeniya: null,
   telefon: null,
   numberUdostLichnosti: null,
   kemVydan: null,
@@ -688,6 +730,8 @@ let partnerContractsSearchTimer;
 let subleaseCountLoading = false;
 let subleaseCountLoadedForToken = null;
 let subleaseCountRequestId = 0;
+let myDataReturnTab = 'profile';
+let myDataAvatarValue = null;
 const CARS = {
   camry:{
     name:'Toyota Camry', plate:'A123BC 777', photo:'🚘', year:'2021', color:'Чёрный', mileage:'68 500 км', status:'Активен', statusClass:'active',
@@ -924,6 +968,7 @@ async function verifyOtp(event){
     renderProfile();
     localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(AppState));
     loadPartnerCars();
+    refreshProfileFromServer();
     document.getElementById('auth-screen').style.display = 'none';
     switchTab('home');
   }catch(error){
@@ -950,9 +995,159 @@ function renderProfile(){
   document.getElementById('profile-last-name').textContent = lastName || '—';
   document.getElementById('profile-email').textContent = String(AppState.email || '').trim() || '—';
   document.getElementById('profile-phone').textContent = String(AppState.telefon || '').trim() || '—';
-  document.getElementById('profile-avatar').textContent = `${firstName[0] || ''}${lastName[0] || ''}`.toUpperCase() || '--';
+  renderAvatar(document.getElementById('profile-avatar'), AppState.avatar, `${firstName[0] || ''}${lastName[0] || ''}`.toUpperCase() || '--');
   document.getElementById('profile-created-at').textContent = formatProfileDate(AppState.created_at);
   loadActiveSubleaseCount();
+}
+
+function renderAvatar(container, imageUrl, fallback){
+  container.replaceChildren();
+  if(imageUrl){
+    const image = document.createElement('img');
+    image.className = 'profile-avatar-image';
+    image.src = imageUrl;
+    image.alt = 'Аватар профиля';
+    image.onerror = ()=>{ container.textContent = fallback; };
+    container.appendChild(image);
+    return;
+  }
+  container.textContent = fallback;
+}
+
+function openMyDataPage(){
+  myDataReturnTab = ['home','cars','finance','analytics','profile'].find(tab =>
+    document.getElementById(`screen-${tab}`).style.display !== 'none'
+  ) || 'profile';
+  myDataAvatarValue = null;
+  const form = document.getElementById('my-data-form');
+  ['familiya','imya','otchestvo','IIN'].forEach(field=>{
+    form.elements[field].value = String(AppState[field] || '');
+  });
+  form.elements.dateRozhdeniya.value = toDateInputValue(AppState.dateRozhdeniya);
+  document.getElementById('my-data-message').textContent = '';
+  document.getElementById('my-data-save').disabled = false;
+  renderAvatar(document.getElementById('my-data-avatar'), AppState.avatar, '--');
+  document.getElementById('fs-my-data').style.display = 'flex';
+}
+
+function toDateInputValue(value){
+  const match = String(value || '').match(/^(\d{4}-\d{2}-\d{2})/);
+  return match ? match[1] : '';
+}
+
+function closeMyDataPage(){
+  document.getElementById('fs-my-data').style.display = 'none';
+  switchTab(myDataReturnTab);
+}
+
+async function handleProfileAvatarChange(input){
+  const file = input.files?.[0];
+  if(!file) return;
+  const message = document.getElementById('my-data-message');
+  if(!['image/jpeg','image/png','image/webp'].includes(file.type)){
+    message.textContent = 'Выберите изображение JPEG, PNG или WebP.';
+    input.value = '';
+    return;
+  }
+
+  try{
+    const imageData = await compressProfileAvatar(file);
+    if(imageData.length > 450000) throw new Error('Размер изображения после сжатия превышает 450 КБ.');
+    myDataAvatarValue = imageData;
+    renderAvatar(document.getElementById('my-data-avatar'), imageData, '--');
+    message.textContent = 'Фото выбрано. Нажмите «Сохранить изменения», чтобы применить его.';
+  }catch(error){
+    console.error('[Profile] Не удалось подготовить аватар:', error);
+    message.textContent = error.message || 'Не удалось обработать изображение.';
+  }finally{
+    input.value = '';
+  }
+}
+
+function compressProfileAvatar(file){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onerror = ()=>reject(new Error('Не удалось прочитать выбранное изображение.'));
+    reader.onload = ()=>{
+      const image = new Image();
+      image.onerror = ()=>reject(new Error('Выбранный файл не является корректным изображением.'));
+      image.onload = ()=>{
+        const scale = Math.min(1, 512 / Math.max(image.naturalWidth, image.naturalHeight));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+        canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+        const context = canvas.getContext('2d');
+        if(!context){
+          reject(new Error('Браузер не поддерживает обработку изображения.'));
+          return;
+        }
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob(blob=>{
+          if(!blob){
+            reject(new Error('Не удалось сжать изображение.'));
+            return;
+          }
+          const result = new FileReader();
+          result.onerror = ()=>reject(new Error('Не удалось подготовить изображение.'));
+          result.onload = ()=>resolve(result.result);
+          result.readAsDataURL(blob);
+        }, 'image/jpeg', 0.82);
+      };
+      image.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function saveMyData(event){
+  event.preventDefault();
+  if(!AppState.sessionToken){
+    document.getElementById('my-data-message').textContent = 'Войдите в аккаунт, чтобы сохранить данные.';
+    return;
+  }
+  const form = document.getElementById('my-data-form');
+  if(!form.reportValidity()) return;
+  const saveButton = document.getElementById('my-data-save');
+  const message = document.getElementById('my-data-message');
+  const updates = {
+    familiya: form.elements.familiya.value.trim(),
+    imya: form.elements.imya.value.trim(),
+    otchestvo: form.elements.otchestvo.value.trim(),
+    IIN: form.elements.IIN.value.trim(),
+    dateRozhdeniya: form.elements.dateRozhdeniya.value
+  };
+  if(myDataAvatarValue !== null) updates.avatar = myDataAvatarValue;
+  saveButton.disabled = true;
+  message.textContent = 'Сохранение…';
+  try{
+    const response = await fetch('/api/profile', {
+      method:'PUT',
+      headers:{
+        'Content-Type':'application/json',
+        Authorization:`Bearer ${AppState.sessionToken}`
+      },
+      body:JSON.stringify(updates)
+    });
+    const result = await response.json().catch(()=>({}));
+    if(!response.ok) throw new Error(result.error || 'Не удалось сохранить данные.');
+    if(!result.profile) throw new Error('Сервис не вернул обновлённые данные профиля.');
+    Object.keys(AppState).forEach(key=>{
+      if(key !== 'sessionToken') AppState[key] = result.profile[key] ?? AppState[key];
+    });
+    myDataAvatarValue = null;
+    localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(AppState));
+    updateGreeting();
+    renderProfile();
+    renderAvatar(document.getElementById('my-data-avatar'), AppState.avatar, '--');
+    message.textContent = 'Данные сохранены.';
+  }catch(error){
+    console.error('[Profile] Ошибка сохранения данных:', error);
+    message.textContent = error.message || 'Не удалось сохранить данные профиля.';
+  }finally{
+    saveButton.disabled = false;
+  }
 }
 
 function formatActiveContractCount(count){
@@ -1015,8 +1210,31 @@ function restoreProfile(){
     updateGreeting();
     renderProfile();
     loadPartnerCars();
+    refreshProfileFromServer();
   }catch(error){
     console.warn('[Profile] Не удалось восстановить профиль:', error);
+  }
+}
+
+async function refreshProfileFromServer(){
+  const sessionToken = AppState.sessionToken;
+  if(!sessionToken) return;
+  try{
+    const response = await fetch('/api/profile', {
+      headers:{Authorization:`Bearer ${sessionToken}`}
+    });
+    const result = await response.json().catch(()=>({}));
+    if(AppState.sessionToken !== sessionToken) return;
+    if(!response.ok) throw new Error(result.error || 'Не удалось загрузить данные профиля.');
+    if(!result.profile) throw new Error('Сервис не вернул данные профиля.');
+    Object.keys(AppState).forEach(key=>{
+      if(key !== 'sessionToken' && key !== 'uid') AppState[key] = result.profile[key] ?? null;
+    });
+    localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(AppState));
+    updateGreeting();
+    renderProfile();
+  }catch(error){
+    console.error('[Profile] Ошибка обновления данных профиля:', error);
   }
 }
 

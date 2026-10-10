@@ -85,7 +85,7 @@ async function findProfile(userId) {
   const columns = [
     'email', 'role', 'familiya', 'imya', 'otchestvo', 'IIN', 'telefon', 'created_at',
     'numberUdostLichnosti', 'kemVydan', 'kogdaVudan', 'adrespropiski',
-    'avatar', 'city', 'city_id', 'compani_name', 'compani_id'
+    'avatar', 'dateRozhdeniya', 'city', 'city_id', 'compani_name', 'compani_id'
   ].join(',');
   const response = await axios.get(`${supabaseUrl}/rest/v1/profiles`, {
     params: { id: `eq.${userId}`, select: `id,${columns}`, limit: 1 },
@@ -186,6 +186,80 @@ app.post('/api/auth/verify-otp', async (req, res) => {
 
   otpStore.delete(phone);
   return res.json({ ok: true, uid: pending.uid, profile, sessionToken: createSessionToken(pending.uid) });
+});
+
+app.get('/api/profile', async (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: 'Сессия истекла. Войдите в аккаунт повторно' });
+  try {
+    const profile = await findProfile(userId);
+    if (!profile) return res.status(404).json({ error: 'Профиль пользователя не найден' });
+    return res.json({ profile });
+  } catch (error) {
+    console.error('[Profile] Ошибка загрузки профиля:', {
+      status: error.response?.status || null,
+      details: error.response?.data || error.message
+    });
+    return res.status(502).json({ error: 'Не удалось загрузить данные профиля' });
+  }
+});
+
+app.put('/api/profile', async (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: 'Сессия истекла. Войдите в аккаунт повторно' });
+
+  const allowedFields = ['familiya', 'imya', 'otchestvo', 'IIN', 'dateRozhdeniya', 'avatar'];
+  const updates = {};
+  for (const field of allowedFields) {
+    if (!Object.prototype.hasOwnProperty.call(req.body || {}, field)) continue;
+    if (typeof req.body[field] !== 'string') {
+      return res.status(400).json({ error: `Поле ${field} должно быть строкой` });
+    }
+    updates[field] = req.body[field].trim();
+  }
+
+  if (!Object.keys(updates).length) {
+    return res.status(400).json({ error: 'Не переданы данные для сохранения' });
+  }
+  for (const field of ['familiya', 'imya', 'otchestvo']) {
+    if (updates[field] !== undefined && updates[field].length > 100) {
+      return res.status(400).json({ error: `Поле ${field} не должно превышать 100 символов` });
+    }
+  }
+  if (updates.IIN && !/^\d{12}$/.test(updates.IIN)) {
+    return res.status(400).json({ error: 'ИИН должен содержать 12 цифр' });
+  }
+  if (updates.dateRozhdeniya) {
+    const parsedDate = new Date(`${updates.dateRozhdeniya}T00:00:00.000Z`);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(updates.dateRozhdeniya) ||
+      !Number.isFinite(parsedDate.getTime()) ||
+      parsedDate.toISOString().slice(0, 10) !== updates.dateRozhdeniya) {
+      return res.status(400).json({ error: 'Укажите корректную дату рождения в формате ГГГГ-ММ-ДД' });
+    }
+  }
+  if (updates.avatar && (
+    updates.avatar.length > 450000 ||
+    !/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(updates.avatar)
+  )) {
+    return res.status(400).json({ error: 'Аватар должен быть изображением JPEG, PNG или WebP размером до 450 КБ' });
+  }
+
+  try {
+    await axios.patch(`${supabaseUrl}/rest/v1/profiles`, updates, {
+      params: { id: `eq.${userId}` },
+      headers: { ...serviceHeaders(), Prefer: 'return=minimal' },
+      timeout: 10000
+    });
+    const profile = await findProfile(userId);
+    if (!profile) return res.status(404).json({ error: 'Профиль пользователя не найден после сохранения' });
+    return res.json({ profile });
+  } catch (error) {
+    console.error('[Profile] Ошибка сохранения профиля:', {
+      status: error.response?.status || null,
+      details: error.response?.data || error.message
+    });
+    return res.status(502).json({ error: 'Не удалось сохранить данные профиля' });
+  }
 });
 
 app.get('/api/partner/cars', async (req, res) => {
