@@ -1117,7 +1117,7 @@ async function saveMyData(event){
     imya: form.elements.imya.value.trim(),
     otchestvo: form.elements.otchestvo.value.trim(),
     IIN: form.elements.IIN.value.trim(),
-    dateRozhdeniya: form.elements.dateRozhdeniya.value
+    dateRozhdeniya: form.elements.dateRozhdeniya.value || null
   };
   if(myDataAvatarValue !== null) updates.avatar = myDataAvatarValue;
   saveButton.disabled = true;
@@ -1135,7 +1135,9 @@ async function saveMyData(event){
     if(!response.ok) throw new Error(result.error || 'Не удалось сохранить данные.');
     if(!result.profile) throw new Error('Сервис не вернул обновлённые данные профиля.');
     Object.keys(AppState).forEach(key=>{
-      if(key !== 'sessionToken') AppState[key] = result.profile[key] ?? AppState[key];
+      if(key !== 'sessionToken' && Object.prototype.hasOwnProperty.call(result.profile, key)){
+        AppState[key] = result.profile[key];
+      }
     });
     myDataAvatarValue = null;
     localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(AppState));

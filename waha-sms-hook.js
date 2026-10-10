@@ -219,6 +219,10 @@ app.put('/api/profile', async (req, res) => {
   const updates = {};
   for (const field of allowedFields) {
     if (!Object.prototype.hasOwnProperty.call(req.body || {}, field)) continue;
+    if (field === 'dateRozhdeniya' && req.body[field] === null) {
+      updates[field] = null;
+      continue;
+    }
     if (typeof req.body[field] !== 'string') {
       return res.status(400).json({ error: `Поле ${field} должно быть строкой` });
     }
