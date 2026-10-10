@@ -190,7 +190,9 @@
   .sublease-contract-date{ white-space:nowrap;}
   .sublease-days-left{ color:var(--text-hi); font-size:10.5px; font-weight:700; text-align:right; white-space:nowrap;}
   .sublease-progress{ height:7px; border-radius:8px; overflow:hidden; background:#E5E7EB;}
-  .sublease-progress-fill{ height:100%; border-radius:inherit; background:var(--green); transition:width .2s ease;}
+  .sublease-progress-fill{ height:100%; border-radius:inherit; background:var(--green); transition:width .2s ease,background-color .2s ease;}
+  .sublease-progress-fill.warning{ background:#F0A83D;}
+  .sublease-progress-fill.critical{ background:var(--red);}
   .sublease-no-contract{ color:var(--text-lo); font-size:12px; padding:10px 0; border-top:1px solid var(--line);}
 
   /* car detail full screen */
@@ -1368,7 +1370,11 @@ function openSubleaseDocumentPage(car){
   if(safeDocumentUrl){
     const frame = document.createElement('iframe');
     frame.className = 'sublease-document-frame';
-    frame.src = safeDocumentUrl;
+    const previewUrl = new URL(safeDocumentUrl);
+    const previewOptions = new URLSearchParams(previewUrl.hash.slice(1));
+    previewOptions.set('zoom', '50');
+    previewUrl.hash = previewOptions.toString();
+    frame.src = previewUrl.href;
     frame.title = `Договор субаренды: ${vehicleName}`;
     frame.referrerPolicy = 'no-referrer';
     const openLink = document.createElement('a');
@@ -1499,9 +1505,9 @@ function createSubleaseCarCard(car){
   const validDates = startDate && endDate && Number.isFinite(startDate.getTime()) && Number.isFinite(endDate.getTime()) && endDate > startDate;
   const remainingMs = validDates ? endDate.getTime() - now : null;
   const daysLeft = remainingMs === null ? null : Math.max(0, Math.ceil(remainingMs / 86400000));
-  const remainingPercent = remainingMs === null
+  const elapsedPercent = remainingMs === null
     ? 0
-    : Math.max(0, Math.min(100, remainingMs / (endDate.getTime() - startDate.getTime()) * 100));
+    : Math.max(0, Math.min(100, (now - startDate.getTime()) / (endDate.getTime() - startDate.getTime()) * 100));
   const days = document.createElement('span');
   days.className = 'sublease-days-left';
   days.textContent = daysLeft === null ? 'Срок не указан' : (daysLeft > 0 ? `Осталось ${daysLeft} дн.` : 'Срок истёк');
@@ -1511,13 +1517,13 @@ function createSubleaseCarCard(car){
   const progress = document.createElement('div');
   progress.className = 'sublease-progress';
   progress.setAttribute('role', 'progressbar');
-  progress.setAttribute('aria-label', 'Оставшийся срок договора');
+  progress.setAttribute('aria-label', 'Прошедшая часть срока договора');
   progress.setAttribute('aria-valuemin', '0');
   progress.setAttribute('aria-valuemax', '100');
-  progress.setAttribute('aria-valuenow', String(Math.round(remainingPercent)));
+  progress.setAttribute('aria-valuenow', String(Math.round(elapsedPercent)));
   const fill = document.createElement('div');
-  fill.className = 'sublease-progress-fill';
-  fill.style.width = `${remainingPercent}%`;
+  fill.className = `sublease-progress-fill${daysLeft !== null && daysLeft < 5 ? ' critical' : daysLeft !== null && daysLeft < 15 ? ' warning' : ''}`;
+  fill.style.width = `${elapsedPercent}%`;
   progress.appendChild(fill);
   card.appendChild(progress);
   return card;
