@@ -1112,6 +1112,7 @@ async function saveMyData(event){
   const saveButton = document.getElementById('my-data-save');
   const message = document.getElementById('my-data-message');
   const updates = {
+    id: AppState.uid,
     familiya: form.elements.familiya.value.trim(),
     imya: form.elements.imya.value.trim(),
     otchestvo: form.elements.otchestvo.value.trim(),

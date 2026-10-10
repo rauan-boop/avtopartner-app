@@ -207,6 +207,13 @@ app.get('/api/profile', async (req, res) => {
 app.put('/api/profile', async (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.status(401).json({ error: 'Сессия истекла. Войдите в аккаунт повторно' });
+  const profileId = req.body?.id;
+  if (typeof profileId !== 'string' || !profileId.trim()) {
+    return res.status(400).json({ error: 'Не указан ID профиля' });
+  }
+  if (profileId !== userId) {
+    return res.status(403).json({ error: 'ID профиля не совпадает с текущей сессией' });
+  }
 
   const allowedFields = ['familiya', 'imya', 'otchestvo', 'IIN', 'dateRozhdeniya', 'avatar'];
   const updates = {};
@@ -245,12 +252,15 @@ app.put('/api/profile', async (req, res) => {
   }
 
   try {
-    await axios.patch(`${supabaseUrl}/rest/v1/profiles`, updates, {
-      params: { id: `eq.${userId}` },
-      headers: { ...serviceHeaders(), Prefer: 'return=minimal' },
+    const updateResponse = await axios.patch(`${supabaseUrl}/rest/v1/profiles`, updates, {
+      params: { id: `eq.${profileId}`, select: 'id' },
+      headers: { ...serviceHeaders(), Prefer: 'return=representation' },
       timeout: 10000
     });
-    const profile = await findProfile(userId);
+    if (!Array.isArray(updateResponse.data) || updateResponse.data.length !== 1) {
+      return res.status(404).json({ error: 'Профиль с указанным ID не найден' });
+    }
+    const profile = await findProfile(profileId);
     if (!profile) return res.status(404).json({ error: 'Профиль пользователя не найден после сохранения' });
     return res.json({ profile });
   } catch (error) {
