@@ -206,13 +206,84 @@ app.get('/api/partner/cars', async (req, res) => {
       timeout: 10000
     });
     const total = Number(response.headers['content-range']?.split('/')[1]);
-    return res.json({ cars: response.data || [], count: Number.isFinite(total) ? total : (response.data || []).length });
+    const cars = response.data || [];
+    if (cars.length) {
+      const profile = await findProfile(userId);
+      if (!profile) return res.status(404).json({ error: 'Профиль пользователя не найден' });
+
+      const filterValue = value => value == null ? 'is.null' : `eq.${value}`;
+      const contractsResponse = await axios.get(`${supabaseUrl}/rest/v1/contracts`, {
+        params: {
+          car_hozyain_id: `eq.${userId}`,
+          compani_id: filterValue(profile.compani_id),
+          city_id: filterValue(profile.city_id),
+          car_id: `in.(${cars.map(car => car.id).join(',')})`,
+          select: 'car_id,date_nachala_arendy,date_okonchaniya_arendy,status_dogovora',
+          order: 'status_dogovora.desc,date_nachala_arendy.desc'
+        },
+        headers: { ...serviceHeaders(), Prefer: 'count=exact' },
+        timeout: 10000
+      });
+
+      const contractByCarId = new Map();
+      (contractsResponse.data || []).forEach(contract => {
+        const carId = String(contract.car_id);
+        if (!contractByCarId.has(carId)) contractByCarId.set(carId, contract);
+      });
+      cars.forEach(car => {
+        car.subleaseContract = contractByCarId.get(String(car.id)) || null;
+      });
+    }
+
+    return res.json({ cars, count: Number.isFinite(total) ? total : cars.length });
   } catch (error) {
     console.error('[Cars] Ошибка загрузки автомобилей:', {
       status: error.response?.status || null,
       details: error.response?.data || error.message
     });
     return res.status(502).json({ error: 'Не удалось загрузить автомобили партнёра' });
+  }
+});
+
+app.get('/api/partner/sublease-cars', async (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: 'Сессия истекла. Войдите в аккаунт повторно' });
+  const countOnly = req.query.count_only === 'true';
+
+  try {
+    const profile = await findProfile(userId);
+    if (!profile) return res.status(404).json({ error: 'Профиль пользователя не найден' });
+
+    const filterValue = value => value == null ? 'is.null' : `eq.${value}`;
+    const response = await axios.get(`${supabaseUrl}/rest/v1/cars`, {
+      params: {
+        hozyain_id: `eq.${userId}`,
+        kompaniya_id: filterValue(profile.compani_id),
+        cityID: filterValue(profile.city_id),
+        arfive: 'eq.false',
+        select: countOnly ? 'date_start_dogovor,date_end_dogovor' : 'id,photo_avto,marka,model,gos_nomer,date_start_dogovor,date_end_dogovor,dogovor_subarendy_url',
+        order: 'id.asc'
+      },
+      headers: { ...serviceHeaders(), Prefer: 'count=exact' },
+      timeout: 10000
+    });
+
+    const cars = response.data || [];
+    const total = Number(response.headers['content-range']?.split('/')[1]);
+    const now = Date.now();
+    const activeCount = cars.filter(car => {
+      const start = Date.parse(car.date_start_dogovor);
+      const end = Date.parse(car.date_end_dogovor);
+      return Number.isFinite(start) && Number.isFinite(end) && start <= now && end >= now;
+    }).length;
+    if (countOnly) return res.json({ activeCount });
+    return res.json({ cars, count: Number.isFinite(total) ? total : cars.length, activeCount });
+  } catch (error) {
+    console.error('[Sublease] Ошибка загрузки договоров субаренды:', {
+      status: error.response?.status || null,
+      details: error.response?.data || error.message
+    });
+    return res.status(502).json({ error: 'Не удалось загрузить договора субаренды' });
   }
 });
 
