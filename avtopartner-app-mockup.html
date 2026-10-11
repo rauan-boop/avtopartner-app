@@ -137,9 +137,9 @@
   .tx-sub{ font-size:11px; color:var(--text-lo); margin-top:2px;}
   .tx-amt{ font-size:13px; font-weight:700; flex-shrink:0;}
   .tx-amt.g{ color:var(--green);} .tx-amt.r{ color:var(--red);}
-  .rental-tx-row{ align-items:flex-start; cursor:default;}
-  .rental-tx-row .tx-icon{ margin-top:1px;}
-  .rental-tx-row .tx-amt{ align-self:center; max-width:38%; text-align:right; white-space:nowrap;}
+  .finance-tx-row{ align-items:flex-start; cursor:default;}
+  .finance-tx-row .tx-icon{ margin-top:1px;}
+  .finance-tx-row .tx-amt{ align-self:center; max-width:38%; text-align:right; white-space:nowrap;}
   .rental-tx-car{ color:var(--text-hi); font-size:12px; line-height:1.4; font-weight:600; overflow-wrap:anywhere;}
   .rental-tx-date{ margin-top:4px; color:var(--text-lo); font-size:10.5px;}
   .finance-tx-status{ min-height:20px; margin:4px 0 10px; color:var(--text-lo); font-size:11px; text-align:center;}
@@ -929,6 +929,7 @@ let financeTransactionsCount = 0;
 let financeTransactionsLoading = false;
 let financeTransactionsHasMore = true;
 let financeTransactionsRequestId = 0;
+let financeTransactionsPeriod = null;
 const CARS = {
   camry:{
     name:'Toyota Camry', plate:'A123BC 777', photo:'🚘', year:'2021', color:'Чёрный', mileage:'68 500 км', status:'Активен', statusClass:'active',
@@ -1048,7 +1049,7 @@ function renderFinance(key){
 
   if(!AppState.sessionToken){
     document.getElementById('tx-list').replaceChildren();
-    document.getElementById('finance-tx-status').textContent = 'Войдите, чтобы увидеть поступления от аренды.';
+    document.getElementById('finance-tx-status').textContent = 'Войдите, чтобы увидеть операции.';
   }
 }
 
@@ -1085,17 +1086,35 @@ function formatFinanceTransactionDate(value){
 
 function appendFinanceTransaction(transaction){
   const row = document.createElement('div');
-  row.className = 'tx-row rental-tx-row';
+  row.className = 'tx-row finance-tx-row';
+  const isExpense = transaction.type === false;
   const icon = document.createElement('div');
   icon.className = 'tx-icon';
-  icon.style.background = 'var(--green-soft)';
-  icon.style.color = 'var(--green)';
-  icon.textContent = '₸';
+  if(isExpense){
+    const expenseIcons = {
+      'Оформление технического осмотра':'📋',
+      'Замена масла ДВС и АКПП':'🛢️',
+      'Ремонт авто':'🔧',
+      'Ежемесячный расход':'📅',
+      'Оформление страховки':'🛡️',
+      'Проведение ТО у дилера':'🧰',
+      'Замена масла в ДВС':'🛢️',
+      'Замена масла в АКПП':'⚙️',
+      'Другое':'📌'
+    };
+    icon.style.background = 'var(--red-soft)';
+    icon.style.color = 'var(--red)';
+    icon.textContent = expenseIcons[transaction.type_rashoda] || '−';
+  }else{
+    icon.style.background = 'var(--green-soft)';
+    icon.style.color = 'var(--green)';
+    icon.textContent = '₸';
+  }
   const body = document.createElement('div');
   body.className = 'tx-body';
   const title = document.createElement('div');
   title.className = 'tx-name';
-  title.textContent = 'Поступление от аренды';
+  title.textContent = isExpense ? (transaction.type_rashoda || 'Расход') : 'Поступление от аренды';
   const car = getFinanceCarDetails(transaction.data_car);
   const carLine = document.createElement('div');
   carLine.className = 'rental-tx-car';
@@ -1105,9 +1124,12 @@ function appendFinanceTransaction(transaction){
   date.textContent = formatFinanceTransactionDate(transaction.created_at);
   body.append(title, carLine, date);
   const amount = document.createElement('div');
-  amount.className = 'tx-amt g';
-  const numericAmount = Number(transaction.cena_za_arendy);
-  amount.textContent = Number.isFinite(numericAmount) ? `+${fmt(numericAmount)}` : String(transaction.cena_za_arendy ?? '—');
+  amount.className = `tx-amt ${isExpense ? 'r' : 'g'}`;
+  const rawAmount = isExpense ? transaction.summa_rashoda : transaction.cena_za_arendy;
+  const numericAmount = Number(rawAmount);
+  amount.textContent = Number.isFinite(numericAmount)
+    ? `${isExpense ? '−' : '+'}${fmt(Math.abs(numericAmount))}`
+    : String(rawAmount ?? '—');
   row.append(icon,body,amount);
   document.getElementById('tx-list').appendChild(row);
 }
@@ -1125,6 +1147,14 @@ function setFinanceTransactionStatus(text, retry = false){
   }
 }
 
+function getCurrentFinanceMonthRange(){
+  const now = new Date();
+  return {
+    from: new Date(now.getFullYear(),now.getMonth(),1).toISOString(),
+    to: new Date(now.getFullYear(),now.getMonth()+1,1).toISOString()
+  };
+}
+
 async function loadFinanceTransactions(reset = false){
   const list = document.getElementById('tx-list');
   if(reset){
@@ -1133,10 +1163,11 @@ async function loadFinanceTransactions(reset = false){
     financeTransactionsCount = 0;
     financeTransactionsHasMore = true;
     financeTransactionsLoading = false;
+    financeTransactionsPeriod = getCurrentFinanceMonthRange();
     list.replaceChildren();
   }
   if(!AppState.sessionToken){
-    setFinanceTransactionStatus('Войдите, чтобы увидеть поступления от аренды.');
+    setFinanceTransactionStatus('Войдите, чтобы увидеть операции.');
     return;
   }
   if(financeTransactionsLoading || !financeTransactionsHasMore) return;
@@ -1144,35 +1175,40 @@ async function loadFinanceTransactions(reset = false){
   const requestId = financeTransactionsRequestId;
   const sessionToken = AppState.sessionToken;
   financeTransactionsLoading = true;
-  setFinanceTransactionStatus('Загружаем поступления…');
+  setFinanceTransactionStatus('Загружаем операции…');
   try{
-    const response = await fetch(`/api/partner/rent-payments?offset=${financeTransactionsOffset}`, {
+    const params = new URLSearchParams({
+      offset:String(financeTransactionsOffset),
+      from:financeTransactionsPeriod.from,
+      to:financeTransactionsPeriod.to
+    });
+    const response = await fetch(`/api/partner/rent-payments?${params}`, {
       headers:{Authorization:'Bearer ' + sessionToken}
     });
     const result = await response.json().catch(()=>({}));
     if(requestId !== financeTransactionsRequestId || AppState.sessionToken !== sessionToken) return;
     if(!(response.headers.get('content-type') || '').includes('application/json')){
-      throw new Error(`Сервис поступлений вернул не JSON (HTTP ${response.status}).`);
+      throw new Error(`Сервис операций вернул не JSON (HTTP ${response.status}).`);
     }
-    if(!response.ok) throw new Error(result.error || 'Не удалось загрузить поступления от аренды.');
+    if(!response.ok)     throw new Error(result.error || 'Не удалось загрузить операции.');
     if(!Array.isArray(result.transactions) || !Number.isSafeInteger(result.count) || result.count < 0){
-      throw new Error('Сервис вернул некорректные данные о поступлениях.');
+      throw new Error('Сервис вернул некорректные данные об операциях.');
     }
     result.transactions.forEach(appendFinanceTransaction);
     financeTransactionsOffset += result.transactions.length;
     financeTransactionsCount = result.count;
     financeTransactionsHasMore = financeTransactionsOffset < financeTransactionsCount && result.transactions.length > 0;
     if(financeTransactionsCount === 0){
-      setFinanceTransactionStatus('Поступлений от аренды пока нет.');
+      setFinanceTransactionStatus('Операций за текущий месяц пока нет.');
     }else if(financeTransactionsHasMore){
       setFinanceTransactionStatus('Прокрутите вниз, чтобы загрузить следующие операции.');
     }else{
-      setFinanceTransactionStatus('Показаны все поступления.');
+      setFinanceTransactionStatus('Показаны все операции за текущий месяц.');
     }
   }catch(error){
     if(requestId !== financeTransactionsRequestId || AppState.sessionToken !== sessionToken) return;
-    console.error('[Finance] Ошибка загрузки поступлений от аренды:', error);
-    setFinanceTransactionStatus(error.message || 'Не удалось загрузить поступления.', true);
+    console.error('[Finance] Ошибка загрузки операций:', error);
+    setFinanceTransactionStatus(error.message || 'Не удалось загрузить операции.', true);
   }finally{
     if(requestId === financeTransactionsRequestId){
       financeTransactionsLoading = false;

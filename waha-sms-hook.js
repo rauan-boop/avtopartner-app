@@ -869,7 +869,27 @@ app.get('/api/partner/rent-payments', async (req, res) => {
     return res.status(400).json({ error: 'Некорректный номер страницы операций' });
   }
 
+  const { from, to } = req.query;
+  const isIsoTimestamp = value => typeof value === 'string' &&
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value) &&
+    Number.isFinite(Date.parse(value)) &&
+    new Date(value).toISOString() === value;
+  if (!isIsoTimestamp(from) || !isIsoTimestamp(to) || Date.parse(from) >= Date.parse(to)) {
+    return res.status(400).json({ error: 'Некорректный период операций' });
+  }
+
   const pageSize = 20;
+  const expenseTypes = [
+    'Оформление технического осмотра',
+    'Замена масла ДВС и АКПП',
+    'Ремонт авто',
+    'Ежемесячный расход',
+    'Оформление страховки',
+    'Проведение ТО у дилера',
+    'Замена масла в ДВС',
+    'Замена масла в АКПП',
+    'Другое'
+  ];
   try {
     const profile = await findProfile(userId);
     if (!profile) return res.status(404).json({ error: 'Профиль пользователя не найден' });
@@ -893,7 +913,9 @@ app.get('/api/partner/rent-payments', async (req, res) => {
     const paymentsResponse = await axios.get(`${supabaseUrl}/rest/v1/ezhednevka`, {
       params: {
         id_car: `in.(${carIds.join(',')})`,
-        select: 'data_car,created_at,cena_za_arendy',
+        and: `(created_at.gte.${from},created_at.lt.${to})`,
+        or: `(type.eq.true,and(type.eq.false,nezavisimyi_rashod.eq.false,type_rashoda.in.(${expenseTypes.map(type => `"${type}"`).join(',')})))`,
+        select: 'data_car,created_at,type,cena_za_arendy,summa_rashoda,type_rashoda',
         order: 'created_at.desc'
       },
       headers: {
@@ -905,18 +927,18 @@ app.get('/api/partner/rent-payments', async (req, res) => {
       timeout: 10000
     });
     const total = Number(paymentsResponse.headers['content-range']?.split('/')[1]);
-    if (!Number.isFinite(total)) throw new Error('Supabase did not return the exact rent payment count');
+    if (!Number.isFinite(total)) throw new Error('Supabase did not return the exact finance transaction count');
 
     return res.json({
       transactions: paymentsResponse.data || [],
       count: total
     });
   } catch (error) {
-    console.error('[Finance] Ошибка загрузки поступлений от аренды:', {
+    console.error('[Finance] Ошибка загрузки операций:', {
       status: error.response?.status || null,
       details: error.response?.data || error.message
     });
-    return res.status(502).json({ error: 'Не удалось загрузить поступления от аренды' });
+    return res.status(502).json({ error: 'Не удалось загрузить финансовые операции' });
   }
 });
 
