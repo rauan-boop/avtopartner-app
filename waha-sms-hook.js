@@ -860,6 +860,66 @@ app.get('/api/partner/company', async (req, res) => {
   }
 });
 
+app.get('/api/partner/rent-payments', async (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: 'Сессия истекла. Войдите в аккаунт повторно' });
+
+  const offset = Number(req.query.offset ?? 0);
+  if (!Number.isSafeInteger(offset) || offset < 0 || offset > 1000000) {
+    return res.status(400).json({ error: 'Некорректный номер страницы операций' });
+  }
+
+  const pageSize = 20;
+  try {
+    const profile = await findProfile(userId);
+    if (!profile) return res.status(404).json({ error: 'Профиль пользователя не найден' });
+
+    const filterValue = value => value == null ? 'is.null' : `eq.${value}`;
+    const carsResponse = await axios.get(`${supabaseUrl}/rest/v1/cars`, {
+      params: {
+        hozyain_id: `eq.${userId}`,
+        kompaniya_id: filterValue(profile.compani_id),
+        cityID: filterValue(profile.city_id),
+        arfive: 'eq.false',
+        select: 'id',
+        order: 'id.asc'
+      },
+      headers: { ...serviceHeaders(), Prefer: 'count=exact' },
+      timeout: 10000
+    });
+    const carIds = (carsResponse.data || []).map(car => car.id).filter(id => id != null);
+    if (!carIds.length) return res.json({ transactions: [], count: 0 });
+
+    const paymentsResponse = await axios.get(`${supabaseUrl}/rest/v1/ezhednevka`, {
+      params: {
+        id_car: `in.(${carIds.join(',')})`,
+        select: 'data_car,created_at,cena_za_arendy',
+        order: 'created_at.desc'
+      },
+      headers: {
+        ...serviceHeaders(),
+        Prefer: 'count=exact',
+        'Range-Unit': 'items',
+        Range: `${offset}-${offset + pageSize - 1}`
+      },
+      timeout: 10000
+    });
+    const total = Number(paymentsResponse.headers['content-range']?.split('/')[1]);
+    if (!Number.isFinite(total)) throw new Error('Supabase did not return the exact rent payment count');
+
+    return res.json({
+      transactions: paymentsResponse.data || [],
+      count: total
+    });
+  } catch (error) {
+    console.error('[Finance] Ошибка загрузки поступлений от аренды:', {
+      status: error.response?.status || null,
+      details: error.response?.data || error.message
+    });
+    return res.status(502).json({ error: 'Не удалось загрузить поступления от аренды' });
+  }
+});
+
 app.get('/api/partner/sublease-cars', async (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.status(401).json({ error: 'Сессия истекла. Войдите в аккаунт повторно' });

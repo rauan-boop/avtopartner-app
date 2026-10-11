@@ -137,6 +137,12 @@
   .tx-sub{ font-size:11px; color:var(--text-lo); margin-top:2px;}
   .tx-amt{ font-size:13px; font-weight:700; flex-shrink:0;}
   .tx-amt.g{ color:var(--green);} .tx-amt.r{ color:var(--red);}
+  .rental-tx-row{ align-items:flex-start; cursor:default;}
+  .rental-tx-row .tx-icon{ margin-top:1px;}
+  .rental-tx-row .tx-amt{ align-self:center; max-width:38%; text-align:right; white-space:nowrap;}
+  .rental-tx-car{ color:var(--text-hi); font-size:12px; line-height:1.4; font-weight:600; overflow-wrap:anywhere;}
+  .rental-tx-date{ margin-top:4px; color:var(--text-lo); font-size:10.5px;}
+  .finance-tx-status{ min-height:20px; margin:4px 0 10px; color:var(--text-lo); font-size:11px; text-align:center;}
 
   .cta{ width:100%; background:var(--green); color:#fff; border:none; border-radius:14px; padding:13px; font-weight:700; font-size:13.5px; cursor:pointer; margin:6px 0; box-shadow:0 8px 16px -10px rgba(5,150,105,.8);}
   .cta.ghost{ background:var(--card); border:1.5px solid var(--line); color:var(--text-hi);}
@@ -514,6 +520,7 @@
 
       <div class="sec-head"><div class="sec-title">Последние операции</div></div>
       <div id="tx-list"></div>
+      <div class="finance-tx-status" id="finance-tx-status" role="status" aria-live="polite"></div>
     </div>
 
     <!-- ================= АНАЛИТИКА ================= -->
@@ -916,6 +923,12 @@ let patternPhase = '';
 let patternNodes = [];
 let patternFirstEntry = '';
 let patternDrawing = false;
+const FINANCE_TRANSACTIONS_PAGE_SIZE = 20;
+let financeTransactionsOffset = 0;
+let financeTransactionsCount = 0;
+let financeTransactionsLoading = false;
+let financeTransactionsHasMore = true;
+let financeTransactionsRequestId = 0;
 const CARS = {
   camry:{
     name:'Toyota Camry', plate:'A123BC 777', photo:'🚘', year:'2021', color:'Чёрный', mileage:'68 500 км', status:'Активен', statusClass:'active',
@@ -995,7 +1008,10 @@ function switchTab(tab){
   });
   document.getElementById('screen-'+tab).scrollTop = 0;
   if(tab==='cars' && !partnerContractsLoaded && !partnerContractsLoading) loadPartnerContracts();
-  if(tab==='finance') renderFinance(document.querySelector('#car-chip-row .chip.active')?.dataset.car || 'all');
+  if(tab==='finance'){
+    renderFinance(document.querySelector('#car-chip-row .chip.active')?.dataset.car || 'all');
+    loadFinanceTransactions(true);
+  }
   if(tab==='profile') renderProfile();
 }
 
@@ -1030,12 +1046,151 @@ function renderFinance(key){
       <div class="exp-bar-bg"><div class="exp-bar-fg" style="width:${e.pct}%;background:${e.color};"></div></div>
     </div>`).join('');
 
-  document.getElementById('tx-list').innerHTML = d.tx.slice(0,5).map(t=>`
-    <div class="tx-row" onclick="showToast('${t.title}: ${t.type==='income'?'+':'-'}${fmt(t.amt)}')">
-      <div class="tx-icon" style="background:${t.bg}; color:${t.color};">${t.icon}</div>
-      <div class="tx-body"><div class="tx-name">${t.title}</div><div class="tx-sub">${t.sub}</div></div>
-      <div class="tx-amt ${t.type==='income'?'g':'r'}">${t.type==='income'?'+':'−'}${fmt(t.amt)}</div>
-    </div>`).join('');
+  if(!AppState.sessionToken){
+    document.getElementById('tx-list').replaceChildren();
+    document.getElementById('finance-tx-status').textContent = 'Войдите, чтобы увидеть поступления от аренды.';
+  }
+}
+
+function getFinanceCarDetails(value){
+  let car = value;
+  if(typeof car === 'string'){
+    try{car = JSON.parse(car);}catch{return {description:car.trim()};}
+  }
+  if(Array.isArray(car)) car = car[0];
+  if(!car || typeof car !== 'object') return {description:String(value ?? '').trim()};
+  const normalized = {};
+  Object.entries(car).forEach(([key,item])=>{
+    normalized[key.toLowerCase().replace(/[^a-zа-я0-9]/gi,'')] = item;
+  });
+  const getValue = keys=>{
+    const value = keys.map(key=>normalized[key]).find(item=>item != null && String(item).trim());
+    return value == null ? '' : String(value).trim();
+  };
+  const brand = getValue(['marka','markaavto','brand','make','марка','маркаавто']);
+  const model = getValue(['model','modelavto','модель']);
+  const plate = getValue(['gosnomer','nomer','licenseplate','plate','госномер','госномеравто']);
+  const description = [brand,model].filter(Boolean).join(' ') || getValue(['name','carname','avto','автомобиль']);
+  return {description:description || 'Автомобиль', plate};
+}
+
+function formatFinanceTransactionDate(value){
+  const date = new Date(value);
+  if(!Number.isFinite(date.getTime())) return String(value || 'Дата не указана');
+  return new Intl.DateTimeFormat('ru-RU', {
+    day:'2-digit', month:'2-digit', year:'numeric',
+    hour:'2-digit', minute:'2-digit'
+  }).format(date);
+}
+
+function appendFinanceTransaction(transaction){
+  const row = document.createElement('div');
+  row.className = 'tx-row rental-tx-row';
+  const icon = document.createElement('div');
+  icon.className = 'tx-icon';
+  icon.style.background = 'var(--green-soft)';
+  icon.style.color = 'var(--green)';
+  icon.textContent = '₸';
+  const body = document.createElement('div');
+  body.className = 'tx-body';
+  const title = document.createElement('div');
+  title.className = 'tx-name';
+  title.textContent = 'Поступление от аренды';
+  const car = getFinanceCarDetails(transaction.data_car);
+  const carLine = document.createElement('div');
+  carLine.className = 'rental-tx-car';
+  carLine.textContent = [car.description,car.plate].filter(Boolean).join(' · ') || 'Автомобиль';
+  const date = document.createElement('div');
+  date.className = 'rental-tx-date';
+  date.textContent = formatFinanceTransactionDate(transaction.created_at);
+  body.append(title, carLine, date);
+  const amount = document.createElement('div');
+  amount.className = 'tx-amt g';
+  const numericAmount = Number(transaction.cena_za_arendy);
+  amount.textContent = Number.isFinite(numericAmount) ? `+${fmt(numericAmount)}` : String(transaction.cena_za_arendy ?? '—');
+  row.append(icon,body,amount);
+  document.getElementById('tx-list').appendChild(row);
+}
+
+function setFinanceTransactionStatus(text, retry = false){
+  const status = document.getElementById('finance-tx-status');
+  status.replaceChildren(document.createTextNode(text));
+  if(retry){
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'security-link-button';
+    button.textContent = 'Повторить';
+    button.addEventListener('click', ()=>loadFinanceTransactions(financeTransactionsOffset === 0));
+    status.appendChild(button);
+  }
+}
+
+async function loadFinanceTransactions(reset = false){
+  const list = document.getElementById('tx-list');
+  if(reset){
+    financeTransactionsRequestId++;
+    financeTransactionsOffset = 0;
+    financeTransactionsCount = 0;
+    financeTransactionsHasMore = true;
+    financeTransactionsLoading = false;
+    list.replaceChildren();
+  }
+  if(!AppState.sessionToken){
+    setFinanceTransactionStatus('Войдите, чтобы увидеть поступления от аренды.');
+    return;
+  }
+  if(financeTransactionsLoading || !financeTransactionsHasMore) return;
+
+  const requestId = financeTransactionsRequestId;
+  const sessionToken = AppState.sessionToken;
+  financeTransactionsLoading = true;
+  setFinanceTransactionStatus('Загружаем поступления…');
+  try{
+    const response = await fetch(`/api/partner/rent-payments?offset=${financeTransactionsOffset}`, {
+      headers:{Authorization:'Bearer ' + sessionToken}
+    });
+    const result = await response.json().catch(()=>({}));
+    if(requestId !== financeTransactionsRequestId || AppState.sessionToken !== sessionToken) return;
+    if(!(response.headers.get('content-type') || '').includes('application/json')){
+      throw new Error(`Сервис поступлений вернул не JSON (HTTP ${response.status}).`);
+    }
+    if(!response.ok) throw new Error(result.error || 'Не удалось загрузить поступления от аренды.');
+    if(!Array.isArray(result.transactions) || !Number.isSafeInteger(result.count) || result.count < 0){
+      throw new Error('Сервис вернул некорректные данные о поступлениях.');
+    }
+    result.transactions.forEach(appendFinanceTransaction);
+    financeTransactionsOffset += result.transactions.length;
+    financeTransactionsCount = result.count;
+    financeTransactionsHasMore = financeTransactionsOffset < financeTransactionsCount && result.transactions.length > 0;
+    if(financeTransactionsCount === 0){
+      setFinanceTransactionStatus('Поступлений от аренды пока нет.');
+    }else if(financeTransactionsHasMore){
+      setFinanceTransactionStatus('Прокрутите вниз, чтобы загрузить следующие операции.');
+    }else{
+      setFinanceTransactionStatus('Показаны все поступления.');
+    }
+  }catch(error){
+    if(requestId !== financeTransactionsRequestId || AppState.sessionToken !== sessionToken) return;
+    console.error('[Finance] Ошибка загрузки поступлений от аренды:', error);
+    setFinanceTransactionStatus(error.message || 'Не удалось загрузить поступления.', true);
+  }finally{
+    if(requestId === financeTransactionsRequestId){
+      financeTransactionsLoading = false;
+      const screen = document.getElementById('screen-finance');
+      if(financeTransactionsHasMore && screen.style.display !== 'none' &&
+        screen.scrollTop + screen.clientHeight >= screen.scrollHeight - 140){
+        setTimeout(handleFinanceScroll, 0);
+      }
+    }
+  }
+}
+
+function handleFinanceScroll(){
+  const screen = document.getElementById('screen-finance');
+  if(screen.style.display === 'none' || financeTransactionsLoading || !financeTransactionsHasMore) return;
+  if(screen.scrollTop + screen.clientHeight >= screen.scrollHeight - 140){
+    loadFinanceTransactions();
+  }
 }
 
 function drawChart(id, points, w, h){
@@ -2711,6 +2866,7 @@ patternGrid.addEventListener('pointerdown', patternPointerDown);
 patternGrid.addEventListener('pointermove', patternPointerMove);
 patternGrid.addEventListener('pointerup', patternPointerUp);
 patternGrid.addEventListener('pointercancel', patternPointerUp);
+document.getElementById('screen-finance').addEventListener('scroll', handleFinanceScroll, {passive:true});
 renderFinance('all');
 </script>
 </body>
