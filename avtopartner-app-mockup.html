@@ -1344,17 +1344,15 @@ async function confirmSecurityPhoneChange(){
       throw new Error(`Сервис смены номера недоступен (HTTP ${response.status}).`);
     }
     if(!response.ok) throw new Error(result.error || 'Не удалось изменить номер.');
-    AppState.telefon = result.telefon;
-    saveProfileSnapshot();
-    document.getElementById('security-phone-value').textContent = result.telefon;
-    document.getElementById('profile-phone').textContent = result.telefon;
-    document.getElementById('security-phone-input').value = '';
-    codeInput.value = '';
-    document.getElementById('security-phone-code-step').style.display = 'none';
-    document.getElementById('security-phone-editor').classList.remove('open');
-    document.getElementById('security-phone-edit-toggle').textContent = 'Изменить';
+    const updatedPhone = String(result.telefon || `+${securityPhoneChangeRequestedPhone}`);
+    const updatedPhoneDigits = updatedPhone.replace(/\D/g, '');
     securityPhoneChangeRequestedPhone = '';
-    message.textContent = 'Номер телефона подтверждён и обновлён.';
+    showAuthScreen();
+    showPhoneLoginForm();
+    const phoneInput = document.getElementById('phone-number');
+    phoneInput.value = updatedPhoneDigits;
+    handlePhoneInput(phoneInput);
+    document.getElementById('phone-error').textContent = 'Номер изменён. Войдите снова с новым номером.';
   }catch(error){
     console.error('[Security] Ошибка подтверждения смены телефона:', error);
     message.textContent = error.message || 'Не удалось изменить номер.';
