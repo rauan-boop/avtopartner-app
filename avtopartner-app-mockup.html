@@ -557,7 +557,7 @@
       <div class="white-card">
         <div class="sec-title" style="margin-bottom:10px; font-size:13.5px;">🅿️ Информация о партнёре</div>
         <div class="info-row"><span class="l">Тип сотрудничества</span><span class="v">Субаренда авто</span></div>
-        <div class="info-row"><span class="l">Автомобилей передано</span><span class="v">2</span></div>
+        <div class="info-row"><span class="l">Автомобилей передано</span><span class="v" id="profile-car-count">—</span></div>
         <div class="info-row" style="border-bottom:none;"><span class="l">Дата подключения</span><span class="v" id="profile-created-at">—</span></div>
       </div>
 
@@ -1673,9 +1673,15 @@ function firstCarPhoto(value){
   return photo;
 }
 
+function updatePartnerCarCount(count){
+  const value = Number.isFinite(count) ? count.toLocaleString('ru-RU') : '—';
+  document.getElementById('home-car-count').textContent = value;
+  document.getElementById('profile-car-count').textContent = value;
+}
+
 function renderPartnerCars(cars, totalCount = cars.length){
   const list = document.getElementById('home-cars-list');
-  document.getElementById('home-car-count').textContent = totalCount.toLocaleString('ru-RU');
+  updatePartnerCarCount(totalCount);
   list.replaceChildren();
 
   if(cars.length === 0){
@@ -1720,7 +1726,7 @@ function renderPartnerCars(cars, totalCount = cars.length){
 async function loadPartnerCars(){
   const list = document.getElementById('home-cars-list');
   if(!AppState.uid || !AppState.sessionToken){
-    document.getElementById('home-car-count').textContent = '—';
+    updatePartnerCarCount(null);
     list.innerHTML = '<div class="info-row"><span class="l">Войдите, чтобы загрузить автомобили</span></div>';
     return;
   }
@@ -1738,7 +1744,7 @@ async function loadPartnerCars(){
     renderPartnerCars(Array.isArray(result.cars) ? result.cars : [], Number.isFinite(result.count) ? result.count : undefined);
   }catch(error){
     console.error('[Cars] Ошибка загрузки автомобилей:', error);
-    document.getElementById('home-car-count').textContent = '—';
+    updatePartnerCarCount(null);
     list.innerHTML = '<div class="info-row"><span class="l">Не удалось загрузить автомобили</span></div>';
   }
 }

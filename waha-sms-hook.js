@@ -633,6 +633,7 @@ app.get('/api/partner/cars', async (req, res) => {
     const response = await axios.get(`${supabaseUrl}/rest/v1/cars`, {
       params: {
         hozyain_id: `eq.${userId}`,
+        arhive: 'eq.false',
         select: 'id,marka,model,gos_nomer,photo_avto',
         order: 'id.asc'
       },
