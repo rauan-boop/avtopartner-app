@@ -208,6 +208,18 @@
   .my-data-field-label{ display:block; margin-bottom:6px; color:var(--text-lo); font-size:11px; font-weight:700;}
   .my-data-field input{ width:100%; border:0; outline:0; color:var(--text-hi); background:transparent; font:inherit; font-size:14px; font-weight:600;}
   .my-data-message{ min-height:20px; margin-top:10px; color:var(--text-lo); font-size:12px; text-align:center;}
+  .security-contact{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:14px; margin-bottom:12px; box-shadow:0 5px 14px rgba(31,41,55,.05);}
+  .security-contact-head{ display:flex; align-items:center; justify-content:space-between; gap:12px;}
+  .security-contact-label{ color:var(--text-lo); font-size:11px; font-weight:700;}
+  .security-contact-value{ color:var(--text-hi); font-size:14px; font-weight:700; margin-top:5px; overflow-wrap:anywhere;}
+  .security-link-button{ border:0; background:transparent; color:var(--blue2); font:inherit; font-size:12px; font-weight:800; cursor:pointer; padding:8px 0 8px 8px;}
+  .security-phone-editor{ display:none; margin-top:12px;}
+  .security-phone-editor.open{ display:block;}
+  .security-input{ width:100%; border:1px solid var(--line); border-radius:12px; padding:12px; background:var(--bg); color:var(--text-hi); font:inherit; font-size:14px;}
+  .security-action{ width:100%; min-height:44px; border:0; border-radius:12px; padding:11px 14px; background:var(--blue2); color:#fff; font:inherit; font-size:13px; font-weight:800; cursor:pointer;}
+  .security-action:disabled{ opacity:.55; cursor:wait;}
+  .security-action.secondary{ background:var(--blue-soft); color:var(--blue2);}
+  .security-hint{ margin-top:6px; color:var(--text-lo); font-size:11px; line-height:1.45;}
 
   /* car detail full screen */
   .fullscreen{ position:absolute; inset:0; background:var(--bg); z-index:40; display:none; flex-direction:column;}
@@ -338,14 +350,16 @@
       <div class="auth-content" id="phone-step">
         <h1 class="auth-title" id="auth-title">Войдите в R-invest</h1>
         <p class="auth-text" id="auth-intro">Используйте ключ входа на устройстве или войдите по номеру телефона.</p>
-        <button class="auth-button passkey" id="passkey-login-button" type="button" onclick="loginWithPasskey()">🔐 Войти по Face ID или ключу</button>
+        <button class="auth-button passkey" id="passkey-login-button" type="button" onclick="loginWithPasskey()">🔐 Войти через биометрию</button>
         <div class="auth-error" id="passkey-error" aria-live="polite"></div>
-        <form class="auth-form" onsubmit="checkPhone(event)">
+        <button class="auth-button" id="open-phone-login-button" type="button" onclick="showPhoneLoginForm()">Войти по номеру телефона</button>
+        <form class="auth-form" id="phone-login-form" style="display:none;" onsubmit="checkPhone(event)">
           <label class="auth-label" for="phone-number">Номер телефона</label>
           <div class="phone-input-wrap"><span class="phone-prefix">+7</span><input class="auth-input" id="phone-number" type="tel" inputmode="numeric" autocomplete="tel" maxlength="13" placeholder="___ ___ __ __" oninput="handlePhoneInput(this)"></div>
           <div class="auth-error" id="phone-error" aria-live="polite"></div>
           <button class="auth-button" id="check-phone-button" type="submit" disabled>Отправить код</button>
           <p class="auth-note">Продолжая, вы соглашаетесь с условиями обработки персональных данных.</p>
+          <button class="auth-back" type="button" onclick="hidePhoneLoginForm()">Назад ко входу по биометрии</button>
         </form>
       </div>
 
@@ -358,7 +372,7 @@
           <input class="auth-input code" id="otp-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="______" oninput="handleOtpInput(this)">
           <div class="auth-error" id="otp-error" aria-live="polite"></div>
           <button class="auth-button" id="login-button" type="submit" disabled>Войти в кабинет</button>
-          <button class="auth-back" type="button" onclick="showAuthScreen()">Изменить номер</button>
+          <button class="auth-back" type="button" onclick="returnToPhoneLogin()">Изменить номер</button>
         </form>
       </div>
 
@@ -556,9 +570,9 @@
           <div><div class="quick-name">Договоры субаренды</div><div class="quick-sub" id="profile-active-sublease-count">Загрузка активных договоров…</div></div>
           <div class="quick-chev">›</div>
         </div>
-        <div class="quick-row" onclick="showToast('Открыта безопасность аккаунта')">
+        <div class="quick-row" onclick="openSecurityPage()">
           <div class="quick-icon" style="background:var(--purple-soft);">🛡️</div>
-          <div><div class="quick-name">Безопасность</div><div class="quick-sub">Смена пароля и вход по биометрии</div></div>
+          <div><div class="quick-name">Безопасность</div><div class="quick-sub">Телефон, почта и быстрый вход</div></div>
           <div class="quick-chev">›</div>
         </div>
         <div class="quick-row" onclick="showToast('Открыты настройки уведомлений')">
@@ -667,6 +681,42 @@
       </div>
     </div>
 
+    <div class="fullscreen" id="fs-security" aria-label="Безопасность">
+      <div class="fs-topbar">
+        <div class="fs-title-wrap sublease-contracts-title"><div class="fs-title">Безопасность</div></div>
+        <button class="fs-back" type="button" aria-label="Назад" title="Назад" onclick="closeSecurityPage()">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"></path><path d="m12 19-7-7 7-7"></path></svg>
+        </button>
+      </div>
+      <div class="fs-body">
+        <div class="security-contact">
+          <div class="security-contact-head">
+            <div><div class="security-contact-label">Номер телефона</div><div class="security-contact-value" id="security-phone-value">—</div></div>
+            <button class="security-link-button" id="security-phone-edit-toggle" type="button" onclick="toggleSecurityPhoneEditor()">Изменить</button>
+          </div>
+          <div class="security-phone-editor" id="security-phone-editor">
+            <input class="security-input" id="security-phone-input" type="tel" inputmode="numeric" autocomplete="tel" maxlength="16" placeholder="+7 ___ ___ __ __" oninput="handleSecurityPhoneInput(this)">
+            <button class="security-action secondary" id="security-phone-send-code" type="button" style="margin-top:10px;" onclick="requestSecurityPhoneCode()">Отправить код на новый номер</button>
+            <div id="security-phone-code-step" style="display:none;margin-top:10px;">
+              <input class="security-input" id="security-phone-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="Код из WhatsApp">
+              <button class="security-action" id="security-phone-confirm" type="button" style="margin-top:10px;" onclick="confirmSecurityPhoneChange()">Подтвердить новый номер</button>
+            </div>
+            <div class="security-hint" id="security-phone-message" role="status" aria-live="polite"></div>
+          </div>
+        </div>
+        <div class="security-contact">
+          <div class="security-contact-label">Электронная почта</div>
+          <div class="security-contact-value" id="security-email-value">—</div>
+          <div class="security-hint">Для изменения почты потребуется настроить подтверждение по email.</div>
+        </div>
+        <div class="security-contact">
+          <div class="security-contact-label">Быстрый вход</div>
+          <div class="security-hint" id="security-passkey-status">Статус не проверен.</div>
+          <button class="security-action" id="security-passkey-button" type="button" style="margin-top:12px;" onclick="setupSecurityPasskey()">Настройка быстрого входа</button>
+        </div>
+      </div>
+    </div>
+
     <div class="fullscreen" id="fs-sublease-contracts" aria-label="Договора субаренды">
       <div class="fs-topbar">
         <div class="fs-title-wrap sublease-contracts-title"><div class="fs-title">Договора субаренды</div></div>
@@ -734,6 +784,8 @@ let subleaseCountLoadedForToken = null;
 let subleaseCountRequestId = 0;
 let myDataReturnTab = 'profile';
 let myDataAvatarValue = null;
+let securityReturnTab = 'profile';
+let securityPhoneChangeRequestedPhone = '';
 const CARS = {
   camry:{
     name:'Toyota Camry', plate:'A123BC 777', photo:'🚘', year:'2021', color:'Чёрный', mileage:'68 500 км', status:'Активен', statusClass:'active',
@@ -981,7 +1033,7 @@ function serializePublicKeyCredential(credential){
   return serialized;
 }
 
-async function completeAuthentication(result, viaOtp){
+async function completeAuthentication(result){
   Object.keys(AppState).forEach(key=>{
     AppState[key] = key === 'sessionToken'
       ? result.sessionToken
@@ -994,7 +1046,6 @@ async function completeAuthentication(result, viaOtp){
   refreshProfileFromServer();
   document.getElementById('auth-screen').style.display = 'none';
   switchTab('home');
-  if(viaOtp) promptPasskeyEnrollmentIfNeeded();
 }
 
 async function loginWithPasskey(){
@@ -1025,7 +1076,7 @@ async function loginWithPasskey(){
     });
     const result = await response.json();
     if(!response.ok) throw new Error(result.error || 'Не удалось проверить ключ входа.');
-    await completeAuthentication(result, false);
+    await completeAuthentication(result);
   }catch(error){
     if(error.name === 'NotAllowedError'){
       errorElement.textContent = 'Вход отменён. Можно повторить попытку или войти по номеру телефона.';
@@ -1035,25 +1086,7 @@ async function loginWithPasskey(){
     }
   }finally{
     button.disabled = !webAuthnAvailable();
-    button.innerHTML = '🔐 Войти по Face ID или ключу';
-  }
-}
-
-async function promptPasskeyEnrollmentIfNeeded(){
-  if(!webAuthnAvailable() || !AppState.sessionToken) return;
-  try{
-    const response = await fetch('/api/auth/passkey/status', {
-      headers:{Authorization:`Bearer ${AppState.sessionToken}`}
-    });
-    const result = await response.json();
-    if(!response.ok) throw new Error(result.error || 'Не удалось проверить настройки ключа.');
-    if(result.hasPasskey) return;
-    if(window.confirm('Настроить быстрый вход на этом устройстве через Face ID, отпечаток или блокировку экрана? В следующий раз можно будет войти без кода из WhatsApp.')){
-      await registerPasskey();
-    }
-  }catch(error){
-    console.error('[Passkey] Не удалось проверить наличие ключа входа:', error);
-    showToast(error.message || 'Не удалось настроить быстрый вход');
+    button.innerHTML = '🔐 Войти через биометрию';
   }
 }
 
@@ -1103,7 +1136,7 @@ async function verifyOtp(event){
       return;
     }
 
-    await completeAuthentication(result, true);
+    await completeAuthentication(result);
   }catch(error){
     console.error('[Auth] Ошибка проверки OTP:', error);
     otpError.textContent = error instanceof TypeError
@@ -1176,6 +1209,185 @@ function toDateInputValue(value){
 function closeMyDataPage(){
   document.getElementById('fs-my-data').style.display = 'none';
   switchTab(myDataReturnTab);
+}
+
+function openSecurityPage(){
+  securityReturnTab = ['home','cars','finance','analytics','profile'].find(tab =>
+    document.getElementById(`screen-${tab}`).style.display !== 'none'
+  ) || 'profile';
+  document.getElementById('security-phone-value').textContent = String(AppState.telefon || '').trim() || 'Не указан';
+  document.getElementById('security-email-value').textContent = String(AppState.email || '').trim() || 'Не указана';
+  document.getElementById('security-phone-input').value = '';
+  document.getElementById('security-phone-code').value = '';
+  document.getElementById('security-phone-code-step').style.display = 'none';
+  document.getElementById('security-phone-editor').classList.remove('open');
+  document.getElementById('security-phone-message').textContent = '';
+  document.getElementById('security-passkey-status').textContent = 'Проверяем быстрый вход…';
+  document.getElementById('security-passkey-button').disabled = !AppState.sessionToken || !webAuthnAvailable();
+  document.getElementById('fs-security').style.display = 'flex';
+  loadSecurityPasskeyStatus();
+}
+
+function closeSecurityPage(){
+  document.getElementById('fs-security').style.display = 'none';
+  switchTab(securityReturnTab);
+}
+
+function toggleSecurityPhoneEditor(){
+  const editor = document.getElementById('security-phone-editor');
+  const open = editor.classList.toggle('open');
+  document.getElementById('security-phone-edit-toggle').textContent = open ? 'Отмена' : 'Изменить';
+  if(!open){
+    securityPhoneChangeRequestedPhone = '';
+    document.getElementById('security-phone-code-step').style.display = 'none';
+    document.getElementById('security-phone-message').textContent = '';
+  }
+}
+
+function handleSecurityPhoneInput(input){
+  let digits = input.value.replace(/\D/g, '');
+  if(digits.length === 11 && (digits[0] === '7' || digits[0] === '8')) digits = digits.slice(1);
+  digits = digits.slice(0, 10);
+  const groups = [digits.slice(0,3), digits.slice(3,6), digits.slice(6,8), digits.slice(8,10)].filter(Boolean);
+  input.value = '+7 ' + groups.join(' ');
+  document.getElementById('security-phone-message').textContent = '';
+}
+
+function securityPhoneDigits(){
+  const digits = document.getElementById('security-phone-input').value.replace(/\D/g, '');
+  if(digits.length === 11 && (digits[0] === '7' || digits[0] === '8')) return '7' + digits.slice(1);
+  return digits.length === 10 ? '7' + digits : '';
+}
+
+async function requestSecurityPhoneCode(){
+  const phone = securityPhoneDigits();
+  const message = document.getElementById('security-phone-message');
+  const button = document.getElementById('security-phone-send-code');
+  if(!phone){
+    message.textContent = 'Введите полный номер телефона.';
+    return;
+  }
+  if(phone === String(AppState.telefon || '').replace(/\D/g, '')){
+    message.textContent = 'Это уже текущий номер телефона.';
+    return;
+  }
+  button.disabled = true;
+  message.textContent = 'Отправляем код…';
+  try{
+    const response = await fetch('/api/auth/change-phone/request', {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        Authorization:`Bearer ${AppState.sessionToken}`
+      },
+      body:JSON.stringify({phone})
+    });
+    const result = await response.json().catch(()=>({}));
+    if(!(response.headers.get('content-type') || '').includes('application/json')){
+      throw new Error(`Сервис смены номера недоступен (HTTP ${response.status}).`);
+    }
+    if(!response.ok) throw new Error(result.error || 'Не удалось отправить код.');
+    securityPhoneChangeRequestedPhone = phone;
+    document.getElementById('security-phone-code-step').style.display = 'block';
+    message.textContent = 'Код отправлен в WhatsApp на новый номер.';
+    document.getElementById('security-phone-code').focus();
+  }catch(error){
+    console.error('[Security] Ошибка отправки кода смены телефона:', error);
+    message.textContent = error.message || 'Не удалось отправить код.';
+  }finally{
+    button.disabled = false;
+  }
+}
+
+async function confirmSecurityPhoneChange(){
+  const codeInput = document.getElementById('security-phone-code');
+  const message = document.getElementById('security-phone-message');
+  const button = document.getElementById('security-phone-confirm');
+  const code = codeInput.value.replace(/\D/g, '').slice(0, 6);
+  if(!securityPhoneChangeRequestedPhone || code.length !== 6){
+    message.textContent = 'Введите шестизначный код из WhatsApp.';
+    return;
+  }
+  button.disabled = true;
+  message.textContent = 'Подтверждаем номер…';
+  try{
+    const response = await fetch('/api/auth/change-phone/verify', {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        Authorization:`Bearer ${AppState.sessionToken}`
+      },
+      body:JSON.stringify({phone:securityPhoneChangeRequestedPhone, otp:code})
+    });
+    const result = await response.json().catch(()=>({}));
+    if(!(response.headers.get('content-type') || '').includes('application/json')){
+      throw new Error(`Сервис смены номера недоступен (HTTP ${response.status}).`);
+    }
+    if(!response.ok) throw new Error(result.error || 'Не удалось изменить номер.');
+    AppState.telefon = result.telefon;
+    saveProfileSnapshot();
+    document.getElementById('security-phone-value').textContent = result.telefon;
+    document.getElementById('profile-phone').textContent = result.telefon;
+    document.getElementById('security-phone-input').value = '';
+    codeInput.value = '';
+    document.getElementById('security-phone-code-step').style.display = 'none';
+    document.getElementById('security-phone-editor').classList.remove('open');
+    document.getElementById('security-phone-edit-toggle').textContent = 'Изменить';
+    securityPhoneChangeRequestedPhone = '';
+    message.textContent = 'Номер телефона подтверждён и обновлён.';
+  }catch(error){
+    console.error('[Security] Ошибка подтверждения смены телефона:', error);
+    message.textContent = error.message || 'Не удалось изменить номер.';
+  }finally{
+    button.disabled = false;
+  }
+}
+
+async function loadSecurityPasskeyStatus(){
+  const status = document.getElementById('security-passkey-status');
+  if(!AppState.sessionToken){
+    status.textContent = 'Войдите по номеру телефона, чтобы настроить быстрый вход.';
+    return;
+  }
+  if(!webAuthnAvailable()){
+    status.textContent = 'Быстрый вход доступен только в поддерживаемом браузере и по HTTPS.';
+    return;
+  }
+  try{
+    const response = await fetch('/api/auth/passkey/status', {
+      headers:{Authorization:`Bearer ${AppState.sessionToken}`}
+    });
+    const result = await response.json().catch(()=>({}));
+    if(!(response.headers.get('content-type') || '').includes('application/json')){
+      throw new Error(`Сервис быстрого входа недоступен (HTTP ${response.status}).`);
+    }
+    if(!response.ok) throw new Error(result.error || 'Не удалось проверить настройку быстрого входа.');
+    status.textContent = result.hasPasskey
+      ? 'На этом устройстве настроен вход с подтверждением устройства.'
+      : 'Быстрый вход на этом устройстве ещё не настроен.';
+  }catch(error){
+    console.error('[Security] Ошибка проверки passkey:', error);
+    status.textContent = error.message || 'Не удалось проверить быстрый вход.';
+  }
+}
+
+async function setupSecurityPasskey(){
+  const button = document.getElementById('security-passkey-button');
+  const status = document.getElementById('security-passkey-status');
+  button.disabled = true;
+  button.textContent = 'Настраиваем…';
+  try{
+    await registerPasskey();
+    await loadSecurityPasskeyStatus();
+  }catch(error){
+    console.error('[Security] Ошибка настройки быстрого входа:', error);
+    status.textContent = error.name === 'NotAllowedError'
+      ? 'Настройка отменена на устройстве.'
+      : (error.message || 'Не удалось настроить быстрый вход.');
+  }finally{
+    button.disabled = !AppState.sessionToken || !webAuthnAvailable();
+    button.textContent = 'Настройка быстрого входа';
+  }
 }
 
 async function handleProfileAvatarChange(input){
@@ -1362,6 +1574,27 @@ function restoreProfile(){
   }
 }
 
+function showPhoneLoginForm(){
+  document.getElementById('phone-login-form').style.display = 'block';
+  document.getElementById('open-phone-login-button').style.display = 'none';
+  document.getElementById('passkey-login-button').style.display = 'none';
+  document.getElementById('passkey-error').textContent = '';
+  document.getElementById('phone-number').focus();
+}
+
+function hidePhoneLoginForm(){
+  document.getElementById('phone-login-form').style.display = 'none';
+  document.getElementById('open-phone-login-button').style.display = 'block';
+  document.getElementById('passkey-login-button').style.display = 'block';
+  document.getElementById('phone-error').textContent = '';
+}
+
+function returnToPhoneLogin(){
+  document.getElementById('phone-step').style.display = 'block';
+  document.getElementById('otp-step').style.display = 'none';
+  showPhoneLoginForm();
+}
+
 async function refreshProfileFromServer(){
   const sessionToken = AppState.sessionToken;
   if(!sessionToken) return;
@@ -1388,6 +1621,9 @@ function showAuthScreen(){
   document.getElementById('auth-screen').style.display = 'flex';
   document.getElementById('phone-step').style.display = 'block';
   document.getElementById('otp-step').style.display = 'none';
+  document.getElementById('phone-login-form').style.display = 'none';
+  document.getElementById('open-phone-login-button').style.display = 'block';
+  document.getElementById('passkey-login-button').style.display = 'block';
   document.getElementById('auth-title').textContent = 'Войдите в R-invest';
   document.getElementById('auth-intro').textContent = 'Используйте ключ входа на устройстве или войдите по номеру телефона.';
   document.getElementById('passkey-error').textContent = '';

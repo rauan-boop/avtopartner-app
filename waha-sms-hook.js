@@ -17,6 +17,7 @@ const wahaSession = process.env.WAHA_SESSION || 'default';
 const wahaApiKey = process.env.WAHA_API_KEY || '';
 const otpTtlMs = 5 * 60 * 1000;
 const otpStore = new Map();
+const phoneChangeStore = new Map();
 const webauthnRpId = process.env.WEBAUTHN_RP_ID || 'partner.ronat.asia';
 const webauthnOrigin = process.env.WEBAUTHN_ORIGIN || 'https://partner.ronat.asia';
 const webauthnChallengeTtlMs = 5 * 60 * 1000;
@@ -142,7 +143,7 @@ function webauthnErrorResponse(res, error, label) {
   return res.status(502).json({ error: `Не удалось выполнить ${label}. Проверьте настройки WebAuthn и Supabase.` });
 }
 
-async function sendOtp(phone, otp) {
+async function sendOtp(phone, otp, purpose = 'входа') {
   if (!wahaUrl) {
     const error = new Error('WAHA_URL is not configured');
     error.code = 'WAHA_NOT_CONFIGURED';
@@ -154,7 +155,7 @@ async function sendOtp(phone, otp) {
   try {
     await axios.post(`${wahaUrl}/api/sendText`, {
       chatId: `${phone}@c.us`,
-      text: `Ваш код входа в R-invest: ${otp}. Код действителен 5 минут.`,
+      text: `Ваш код ${purpose} в R-invest: ${otp}. Код действителен 5 минут.`,
       session: wahaSession
     }, { headers, timeout: 10000 });
   } catch (error) {
@@ -235,12 +236,121 @@ app.post('/api/auth/verify-otp', async (req, res) => {
   return res.json({ ok: true, uid: pending.uid, profile, sessionToken: createSessionToken(pending.uid) });
 });
 
+app.post('/api/auth/change-phone/request', async (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: 'Сессия истекла. Войдите повторно' });
+  const phone = normalizePhone(req.body?.phone);
+  if (phone.length !== 11 || !phone.startsWith('7')) {
+    return res.status(400).json({ error: 'Введите корректный номер телефона' });
+  }
+  try {
+    const profile = await findProfile(userId);
+    if (!profile) return res.status(404).json({ error: 'Профиль пользователя не найден' });
+    const currentPhone = normalizePhone(profile.telefon);
+    if (phone === currentPhone) return res.status(400).json({ error: 'Это уже текущий номер телефона' });
+
+    const existingAuthUser = await findAuthUser(phone);
+    if (existingAuthUser && existingAuthUser.id !== userId) {
+      return res.status(409).json({ error: 'Этот номер уже используется другим аккаунтом' });
+    }
+
+    const otp = String(crypto.randomInt(100000, 1000000));
+    await sendOtp(phone, otp, 'подтверждения нового номера');
+    phoneChangeStore.set(userId, {
+      phone,
+      otp,
+      expiresAt: Date.now() + otpTtlMs,
+      attempts: 0,
+      oldPhone: profile.telefon || null
+    });
+    return res.json({ ok: true });
+  } catch (error) {
+    console.error('[Security] Ошибка запроса смены номера:', {
+      status: error.response?.status || null,
+      details: error.response?.data || error.message
+    });
+    if (error.code === 'WAHA_NOT_CONFIGURED' || error.code === 'WAHA_SEND_FAILED') {
+      return res.status(502).json({ error: 'Не удалось отправить код в WhatsApp на новый номер' });
+    }
+    return res.status(502).json({ error: 'Не удалось начать смену номера телефона' });
+  }
+});
+
+app.post('/api/auth/change-phone/verify', async (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: 'Сессия истекла. Войдите повторно' });
+  const phone = normalizePhone(req.body?.phone);
+  const otp = String(req.body?.otp || '').replace(/\D/g, '');
+  const pending = phoneChangeStore.get(userId);
+  if (!pending || pending.expiresAt < Date.now() || pending.phone !== phone) {
+    phoneChangeStore.delete(userId);
+    return res.status(400).json({ error: 'Код истёк или номер изменился. Запросите новый код' });
+  }
+  pending.attempts += 1;
+  if (pending.attempts > 5) {
+    phoneChangeStore.delete(userId);
+    return res.status(429).json({ error: 'Превышено число попыток. Запросите новый код' });
+  }
+  if (otp !== pending.otp) return res.status(401).json({ error: 'Неверный код подтверждения' });
+
+  try {
+    const profileResponse = await axios.patch(`${supabaseUrl}/rest/v1/profiles`, {
+      telefon: `+${phone}`
+    }, {
+      params: { id: `eq.${userId}`, select: 'id' },
+      headers: { ...serviceHeaders(), Prefer: 'return=representation' },
+      timeout: 10000
+    });
+    if (!Array.isArray(profileResponse.data) || profileResponse.data.length !== 1) {
+      return res.status(404).json({ error: 'Профиль пользователя не найден' });
+    }
+
+    try {
+      await axios.put(`${supabaseUrl}/auth/v1/admin/users/${encodeURIComponent(userId)}`, {
+        phone: `+${phone}`,
+        phone_confirm: true
+      }, {
+        headers: serviceHeaders(),
+        timeout: 10000
+      });
+    } catch (authError) {
+      try {
+        await axios.patch(`${supabaseUrl}/rest/v1/profiles`, {
+          telefon: pending.oldPhone
+        }, {
+          params: { id: `eq.${userId}` },
+          headers: serviceHeaders(),
+          timeout: 10000
+        });
+      } catch (rollbackError) {
+        console.error('[Security] Не удалось отменить обновление номера в profiles:', {
+          status: rollbackError.response?.status || null,
+          details: rollbackError.response?.data || rollbackError.message
+        });
+      }
+      throw authError;
+    }
+
+    phoneChangeStore.delete(userId);
+    return res.json({ ok: true, telefon: `+${phone}` });
+  } catch (error) {
+    console.error('[Security] Ошибка сохранения нового номера:', {
+      status: error.response?.status || null,
+      details: error.response?.data || error.message
+    });
+    return res.status(502).json({ error: 'Не удалось обновить номер в профиле и авторизации' });
+  }
+});
+
 app.get('/api/auth/passkey/status', async (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.status(401).json({ error: 'Сессия истекла. Войдите по номеру телефона' });
   try {
     const credentials = await findWebAuthnCredentials(userId);
-    return res.json({ hasPasskey: credentials.length > 0 });
+    const hasDevicePasskey = credentials.some(credential =>
+      Array.isArray(credential.transports) && credential.transports.includes('internal')
+    );
+    return res.json({ hasPasskey: hasDevicePasskey });
   } catch (error) {
     return webauthnErrorResponse(res, error, 'проверку ключа входа');
   }
@@ -270,6 +380,7 @@ app.post('/api/auth/passkey/register/options', async (req, res) => {
         transports: credential.transports
       }))
     });
+    options.hints = ['client-device'];
     saveWebAuthnChallenge(options.challenge, 'registration', userId);
     return res.json(options);
   } catch (error) {
@@ -330,11 +441,27 @@ app.post('/api/auth/passkey/register/verify', async (req, res) => {
 
 app.post('/api/auth/passkey/login/options', async (req, res) => {
   try {
+    const credentialsResponse = await axios.get(`${supabaseUrl}/rest/v1/webauthn_credentials`, {
+      params: {
+        select: 'credential_id,transports',
+        transports: 'cs.{"internal"}'
+      },
+      headers: serviceHeaders(),
+      timeout: 10000
+    });
+    const credentials = credentialsResponse.data || [];
+    if (!credentials.length) {
+      return res.status(404).json({ error: 'На этом устройстве ещё не настроен быстрый вход. Войдите по телефону и настройте его в разделе «Безопасность».' });
+    }
     const options = await generateAuthenticationOptions({
       rpID: webauthnRpId,
       userVerification: 'required',
-      allowCredentials: []
+      allowCredentials: credentials.map(credential => ({
+        id: credential.credential_id,
+        transports: ['internal']
+      }))
     });
+    options.hints = ['client-device'];
     saveWebAuthnChallenge(options.challenge, 'authentication');
     return res.json(options);
   } catch (error) {
