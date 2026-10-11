@@ -483,15 +483,14 @@
     <!-- ================= ФИНАНСЫ ================= -->
     <div class="screen" id="screen-finance" style="display:none;">
       <div class="page-title">Финансы</div>
+      <div class="sec-title" style="margin:0 0 8px;">Мои машины</div>
       <div class="chip-row" id="car-chip-row">
         <div class="chip active" data-car="all" onclick="selectCar(this,'all')">Все машины</div>
-        <div class="chip" data-car="camry" onclick="selectCar(this,'camry')">Toyota Camry</div>
-        <div class="chip" data-car="rio" onclick="selectCar(this,'rio')">Kia Rio</div>
       </div>
-      <div class="segment">
-        <div class="seg-btn active" onclick="setSeg(this)">Месяц</div>
-        <div class="seg-btn" onclick="setSeg(this)">Квартал</div>
-        <div class="seg-btn" onclick="setSeg(this)">Год</div>
+      <div class="segment" id="finance-period-tabs">
+        <div class="seg-btn active" data-period="month" onclick="setFinancePeriod('month',this)">Месяц</div>
+        <div class="seg-btn" data-period="quarter" onclick="setFinancePeriod('quarter',this)">Квартал</div>
+        <div class="seg-btn" data-period="year" onclick="setFinancePeriod('year',this)">Год</div>
       </div>
       <div class="date-nav">
         <button class="date-arrow" type="button" aria-label="Предыдущий месяц" onclick="changeFinanceMonth(-1)">‹</button>
@@ -935,9 +934,15 @@ let financeTransactionsHasMore = true;
 let financeTransactionsRequestId = 0;
 let financeTransactionsPeriod = null;
 let financeSelectedMonth = new Date(new Date().getFullYear(),new Date().getMonth(),1);
+let financeSelectedPeriod = 'month';
+let financeSelectedCarId = null;
+let financeCarsLoaded = false;
+let financeCarsLoading = false;
+let financeCarsRequestId = 0;
+let financeCarsOwnerId = null;
 let financeSummaryRequestId = 0;
 let financeSummaryLoading = false;
-let financeSummary = {income:0,expense:0,expensesByType:[],profitByWeek:[]};
+let financeSummary = {income:0,expense:0,expensesByType:[],profitByPeriod:[]};
 const CARS = {
   camry:{
     name:'Toyota Camry', plate:'A123BC 777', photo:'🚘', year:'2021', color:'Чёрный', mileage:'68 500 км', status:'Активен', statusClass:'active',
@@ -1019,6 +1024,7 @@ function switchTab(tab){
   if(tab==='cars' && !partnerContractsLoaded && !partnerContractsLoading) loadPartnerContracts();
   if(tab==='finance'){
     renderFinance();
+    loadFinanceCars();
     loadFinanceTransactions(true);
   }
   if(tab==='profile') renderProfile();
@@ -1037,23 +1043,120 @@ function setPartnerContractSearch(value){
   partnerContractsSearchTimer = setTimeout(()=>loadPartnerContracts(true), 250);
 }
 function setSeg(el){ el.parentElement.querySelectorAll('.seg-btn').forEach(c=>c.classList.remove('active')); el.classList.add('active'); showToast('Период: '+el.textContent); }
-function selectCar(el,key){ document.querySelectorAll('#car-chip-row .chip').forEach(c=>c.classList.remove('active')); el.classList.add('active'); renderFinance(); }
+
+function setFinancePeriod(period,element){
+  financeSelectedPeriod = period;
+  document.querySelectorAll('#finance-period-tabs .seg-btn').forEach(chip=>chip.classList.toggle('active',chip===element));
+  updateFinanceMonthLabel();
+  document.getElementById('screen-finance').scrollTop = 0;
+  loadFinanceTransactions(true);
+}
+
+function selectCar(element,carId){
+  document.querySelectorAll('#car-chip-row .chip').forEach(chip=>chip.classList.toggle('active',chip===element));
+  financeSelectedCarId = carId === 'all' ? null : String(carId);
+  document.getElementById('screen-finance').scrollTop = 0;
+  loadFinanceTransactions(true);
+}
+
+async function loadFinanceCars(){
+  if(financeCarsOwnerId !== AppState.uid){
+    financeCarsOwnerId = AppState.uid;
+    financeCarsLoaded = false;
+    financeSelectedCarId = null;
+  }
+  if(financeCarsLoaded || financeCarsLoading) return;
+  if(!AppState.uid || !AppState.sessionToken) return;
+  const requestId = ++financeCarsRequestId;
+  const sessionToken = AppState.sessionToken;
+  financeCarsLoading = true;
+  const row = document.getElementById('car-chip-row');
+  row.replaceChildren();
+  const loading = document.createElement('div');
+  loading.className = 'chip active';
+  loading.textContent = 'Загрузка машин…';
+  row.appendChild(loading);
+  try{
+    const response = await fetch(`/api/partner/cars?hozyain_id=${encodeURIComponent(AppState.uid)}`,{
+      headers:{Authorization:'Bearer ' + sessionToken}
+    });
+    const result = await response.json().catch(()=>({}));
+    if(requestId !== financeCarsRequestId || AppState.sessionToken !== sessionToken) return;
+    if(!(response.headers.get('content-type') || '').includes('application/json')){
+      throw new Error(`Сервис автомобилей вернул не JSON (HTTP ${response.status}).`);
+    }
+    if(!response.ok) throw new Error(result.error || 'Не удалось загрузить автомобили партнёра.');
+    if(!Array.isArray(result.cars)) throw new Error('Сервис вернул некорректный список автомобилей.');
+    row.replaceChildren();
+    const allCars = document.createElement('div');
+    allCars.className = `chip${financeSelectedCarId === null ? ' active' : ''}`;
+    allCars.dataset.car = 'all';
+    allCars.textContent = 'Все машины';
+    allCars.addEventListener('click',()=>selectCar(allCars,'all'));
+    row.appendChild(allCars);
+    result.cars.filter(car=>car && car.id != null).forEach(car=>{
+      const chip = document.createElement('div');
+      chip.className = `chip${String(car.id) === financeSelectedCarId ? ' active' : ''}`;
+      chip.dataset.car = String(car.id);
+      chip.textContent = [[car.marka,car.model].filter(Boolean).join(' '),car.gos_nomer].filter(Boolean).join(' · ') || 'Автомобиль';
+      chip.addEventListener('click',()=>selectCar(chip,car.id));
+      row.appendChild(chip);
+    });
+    if(financeSelectedCarId !== null && !result.cars.some(car=>String(car.id) === financeSelectedCarId)){
+      financeSelectedCarId = null;
+      allCars.classList.add('active');
+    }
+    financeCarsLoaded = true;
+  }catch(error){
+    if(requestId !== financeCarsRequestId || AppState.sessionToken !== sessionToken) return;
+    console.error('[Finance] Ошибка загрузки списка автомобилей:',error);
+    row.replaceChildren();
+    const errorLabel = document.createElement('span');
+    errorLabel.className = 'chip';
+    errorLabel.textContent = 'Не удалось загрузить машины';
+    row.appendChild(errorLabel);
+  }finally{
+    if(requestId === financeCarsRequestId) financeCarsLoading = false;
+  }
+}
 
 function updateFinanceMonthLabel(){
   const label = document.getElementById('finance-month-label');
   const current = new Date();
-  const month = new Intl.DateTimeFormat('ru-RU',{month:'long',year:'numeric'}).format(financeSelectedMonth);
-  label.textContent = '📅 ' + month.charAt(0).toUpperCase() + month.slice(1);
+  const selectedPeriodStartMonth = financeSelectedPeriod === 'year'
+    ? 0
+    : financeSelectedPeriod === 'quarter'
+      ? Math.floor(financeSelectedMonth.getMonth()/3)*3
+      : financeSelectedMonth.getMonth();
+  const currentPeriodStartMonth = financeSelectedPeriod === 'year'
+    ? 0
+    : financeSelectedPeriod === 'quarter'
+      ? Math.floor(current.getMonth()/3)*3
+      : current.getMonth();
+  let display;
+  if(financeSelectedPeriod === 'quarter'){
+    const quarter = Math.floor(financeSelectedMonth.getMonth()/3)+1;
+    display = `${['I','II','III','IV'][quarter-1]} квартал ${financeSelectedMonth.getFullYear()}`;
+  }else if(financeSelectedPeriod === 'year'){
+    display = String(financeSelectedMonth.getFullYear());
+  }else{
+    const month = new Intl.DateTimeFormat('ru-RU',{month:'long',year:'numeric'}).format(financeSelectedMonth);
+    display = month.charAt(0).toUpperCase() + month.slice(1);
+  }
+  label.textContent = '📅 ' + display;
+  const unit = financeSelectedPeriod === 'year' ? 'год' : financeSelectedPeriod === 'quarter' ? 'квартал' : 'месяц';
+  document.querySelector('#screen-finance .date-nav .date-arrow').setAttribute('aria-label',`Предыдущий ${unit}`);
+  document.getElementById('finance-next-month').setAttribute('aria-label',`Следующий ${unit}`);
   document.getElementById('finance-next-month').disabled =
     financeSelectedMonth.getFullYear() > current.getFullYear() ||
-    (financeSelectedMonth.getFullYear() === current.getFullYear() && financeSelectedMonth.getMonth() >= current.getMonth());
+    (financeSelectedMonth.getFullYear() === current.getFullYear() && selectedPeriodStartMonth >= currentPeriodStartMonth);
 }
 
 function changeFinanceMonth(delta){
-  const nextMonth = new Date(financeSelectedMonth.getFullYear(),financeSelectedMonth.getMonth()+delta,1);
+  const monthsPerStep = financeSelectedPeriod === 'year' ? 12 : financeSelectedPeriod === 'quarter' ? 3 : 1;
+  const nextMonth = new Date(financeSelectedMonth.getFullYear(),financeSelectedMonth.getMonth()+delta*monthsPerStep,1);
   const current = new Date();
-  if(nextMonth.getFullYear() > current.getFullYear() ||
-    (nextMonth.getFullYear() === current.getFullYear() && nextMonth.getMonth() > current.getMonth())) return;
+  if(nextMonth > new Date(current.getFullYear(),current.getMonth(),1)) return;
   financeSelectedMonth = nextMonth;
   updateFinanceMonthLabel();
   document.getElementById('screen-finance').scrollTop = 0;
@@ -1065,11 +1168,11 @@ function renderFinance(){
   document.getElementById('fin-income').textContent = fmt(financeSummary.income);
   document.getElementById('fin-expense').textContent = fmt(financeSummary.expense);
   document.getElementById('fin-profit').textContent = fmt(financeSummary.income - financeSummary.expense);
-  document.getElementById('fin-income-delta').textContent = 'За выбранный месяц';
-  document.getElementById('fin-expense-delta').textContent = 'За выбранный месяц';
-  document.getElementById('fin-profit-delta').textContent = 'За выбранный месяц';
+  document.getElementById('fin-income-delta').textContent = 'За выбранный период';
+  document.getElementById('fin-expense-delta').textContent = 'За выбранный период';
+  document.getElementById('fin-profit-delta').textContent = 'За выбранный период';
   renderFinanceExpenses();
-  renderFinanceChart(financeSummary.profitByWeek);
+  renderFinanceChart(financeSummary.profitByPeriod);
 
   if(!AppState.sessionToken){
     document.getElementById('tx-list').replaceChildren();
@@ -1077,15 +1180,26 @@ function renderFinance(){
   }
 }
 
-function renderFinanceChart(profitByWeek = []){
-  const weeks = Math.ceil(new Date(financeSelectedMonth.getFullYear(),financeSelectedMonth.getMonth()+1,0).getDate()/7);
-  const points = Array.from({length:weeks},(_,index)=>Number(profitByWeek[index]) || 0);
+function renderFinanceChart(profitByPeriod = []){
+  let labelsText;
+  if(financeSelectedPeriod === 'year'){
+    const yearStart = new Date(financeSelectedMonth.getFullYear(),0,1);
+    labelsText = Array.from({length:12},(_,i)=>new Intl.DateTimeFormat('ru-RU',{month:'short'}).format(new Date(yearStart.getFullYear(),i,1)));
+  }else if(financeSelectedPeriod === 'quarter'){
+    const quarterStart = Math.floor(financeSelectedMonth.getMonth()/3)*3;
+    labelsText = Array.from({length:3},(_,i)=>new Intl.DateTimeFormat('ru-RU',{month:'short'}).format(new Date(financeSelectedMonth.getFullYear(),quarterStart+i,1)));
+  }else{
+    const daysInMonth = new Date(financeSelectedMonth.getFullYear(),financeSelectedMonth.getMonth()+1,0).getDate();
+    labelsText = Array.from({length:Math.ceil(daysInMonth/7)},(_,index)=>{
+      const startDay = index*7+1;
+      return `${startDay}–${Math.min(startDay+6,daysInMonth)}`;
+    });
+  }
+  const points = Array.from({length:labelsText.length},(_,index)=>Number(profitByPeriod[index]) || 0);
   const labels = document.getElementById('finance-chart-labels');
-  labels.replaceChildren(...points.map((_,index)=>{
+  labels.replaceChildren(...labelsText.map(text=>{
     const label = document.createElement('span');
-    const startDay = index * 7 + 1;
-    const endDay = Math.min(startDay + 6,new Date(financeSelectedMonth.getFullYear(),financeSelectedMonth.getMonth()+1,0).getDate());
-    label.textContent = `${startDay}–${endDay}`;
+    label.textContent = text;
     return label;
   }));
   drawChart('chart-svg',points.length ? points : [0],340,105);
@@ -1150,18 +1264,22 @@ function applyFinanceSummary(summary){
   document.getElementById('fin-expense').textContent = fmt(summary.expense);
   document.getElementById('fin-profit').textContent = fmt(summary.income - summary.expense);
   renderFinanceExpenses();
-  renderFinanceChart(summary.profitByWeek);
+  renderFinanceChart(summary.profitByPeriod);
 }
 
 async function loadFinanceSummary(sessionToken, requestId){
   financeSummaryLoading = true;
   const status = document.getElementById('finance-summary-status');
-  status.textContent = 'Считаем итоги за месяц…';
+  status.textContent = 'Считаем итоги за выбранный период…';
   try{
     const params = new URLSearchParams({
       from:financeTransactionsPeriod.from,
-      to:financeTransactionsPeriod.to
+      to:financeTransactionsPeriod.to,
+      period:financeTransactionsPeriod.period,
+      year:String(financeTransactionsPeriod.year),
+      month:String(financeTransactionsPeriod.month)
     });
+    if(financeSelectedCarId !== null) params.set('car_id',financeSelectedCarId);
     const response = await fetch(`/api/partner/finance-summary?${params}`, {
       headers:{Authorization:'Bearer ' + sessionToken}
     });
@@ -1170,17 +1288,17 @@ async function loadFinanceSummary(sessionToken, requestId){
     if(!(response.headers.get('content-type') || '').includes('application/json')){
       throw new Error(`Сервис итогов вернул не JSON (HTTP ${response.status}).`);
     }
-    if(!response.ok) throw new Error(result.error || 'Не удалось загрузить итоги за месяц.');
+    if(!response.ok) throw new Error(result.error || 'Не удалось загрузить итоги за выбранный период.');
     if(!Number.isFinite(result.income) || !Number.isFinite(result.expense) ||
-      !Array.isArray(result.expensesByType) || !Array.isArray(result.profitByWeek)){
-      throw new Error('Сервис вернул некорректные месячные итоги.');
+      !Array.isArray(result.expensesByType) || !Array.isArray(result.profitByPeriod)){
+      throw new Error('Сервис вернул некорректные финансовые итоги.');
     }
     applyFinanceSummary(result);
     status.textContent = '';
   }catch(error){
     if(requestId !== financeSummaryRequestId || AppState.sessionToken !== sessionToken) return;
-    console.error('[Finance] Ошибка загрузки месячных итогов:',error);
-    status.textContent = error.message || 'Не удалось загрузить итоги за месяц.';
+    console.error('[Finance] Ошибка загрузки итогов:',error);
+    status.textContent = error.message || 'Не удалось загрузить итоги за выбранный период.';
   }finally{
     if(requestId === financeSummaryRequestId) financeSummaryLoading = false;
   }
@@ -1281,9 +1399,18 @@ function setFinanceTransactionStatus(text, retry = false){
 }
 
 function getCurrentFinanceMonthRange(){
+  const startMonth = financeSelectedPeriod === 'year'
+    ? 0
+    : financeSelectedPeriod === 'quarter'
+      ? Math.floor(financeSelectedMonth.getMonth()/3)*3
+      : financeSelectedMonth.getMonth();
+  const monthCount = financeSelectedPeriod === 'year' ? 12 : financeSelectedPeriod === 'quarter' ? 3 : 1;
   return {
-    from: new Date(financeSelectedMonth.getFullYear(),financeSelectedMonth.getMonth(),1).toISOString(),
-    to: new Date(financeSelectedMonth.getFullYear(),financeSelectedMonth.getMonth()+1,1).toISOString()
+    from: new Date(financeSelectedMonth.getFullYear(),startMonth,1).toISOString(),
+    to: new Date(financeSelectedMonth.getFullYear(),startMonth+monthCount,1).toISOString(),
+    period:financeSelectedPeriod,
+    year:financeSelectedMonth.getFullYear(),
+    month:financeSelectedMonth.getMonth()+1
   };
 }
 
@@ -1298,7 +1425,7 @@ async function loadFinanceTransactions(reset = false){
     financeTransactionsPeriod = getCurrentFinanceMonthRange();
     financeSummaryRequestId++;
     financeSummaryLoading = false;
-    financeSummary = {income:0,expense:0,expensesByType:[],profitByWeek:[]};
+    financeSummary = {income:0,expense:0,expensesByType:[],profitByPeriod:[]};
     document.getElementById('fin-income').textContent = fmt(0);
     document.getElementById('fin-expense').textContent = fmt(0);
     document.getElementById('fin-profit').textContent = fmt(0);
@@ -1321,8 +1448,12 @@ async function loadFinanceTransactions(reset = false){
     const params = new URLSearchParams({
       offset:String(financeTransactionsOffset),
       from:financeTransactionsPeriod.from,
-      to:financeTransactionsPeriod.to
+      to:financeTransactionsPeriod.to,
+      period:financeTransactionsPeriod.period,
+      year:String(financeTransactionsPeriod.year),
+      month:String(financeTransactionsPeriod.month)
     });
+    if(financeSelectedCarId !== null) params.set('car_id',financeSelectedCarId);
     const response = await fetch(`/api/partner/rent-payments?${params}`, {
       headers:{Authorization:'Bearer ' + sessionToken}
     });
@@ -1340,11 +1471,11 @@ async function loadFinanceTransactions(reset = false){
     financeTransactionsCount = result.count;
     financeTransactionsHasMore = financeTransactionsOffset < financeTransactionsCount && result.transactions.length > 0;
     if(financeTransactionsCount === 0){
-      setFinanceTransactionStatus('Операций за текущий месяц пока нет.');
+      setFinanceTransactionStatus('Операций за выбранный период пока нет.');
     }else if(financeTransactionsHasMore){
       setFinanceTransactionStatus('Прокрутите вниз, чтобы загрузить следующие операции.');
     }else{
-      setFinanceTransactionStatus('Показаны все операции за текущий месяц.');
+      setFinanceTransactionStatus('Показаны все операции за выбранный период.');
     }
   }catch(error){
     if(requestId !== financeTransactionsRequestId || AppState.sessionToken !== sessionToken) return;

@@ -880,6 +880,12 @@ function isValidFinanceRange(from, to) {
   return isIsoTimestamp(from) && isIsoTimestamp(to) && Date.parse(from) < Date.parse(to);
 }
 
+function isValidFinancePeriod(period, year, month) {
+  return ['month', 'quarter', 'year'].includes(period) &&
+    Number.isInteger(year) && year >= 2000 && year <= 9999 &&
+    Number.isInteger(month) && month >= 1 && month <= 12;
+}
+
 app.get('/api/partner/rent-payments', async (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.status(401).json({ error: 'Сессия истекла. Войдите в аккаунт повторно' });
@@ -890,7 +896,10 @@ app.get('/api/partner/rent-payments', async (req, res) => {
   }
 
   const { from, to } = req.query;
-  if (!isValidFinanceRange(from, to)) {
+  const requestedCarId = req.query.car_id;
+  if (!isValidFinanceRange(from, to) ||
+    !isValidFinancePeriod(req.query.period, Number(req.query.year), Number(req.query.month)) ||
+    (requestedCarId !== undefined && (typeof requestedCarId !== 'string' || !requestedCarId.trim() || requestedCarId.length > 64))) {
     return res.status(400).json({ error: 'Некорректный период операций' });
   }
 
@@ -914,10 +923,14 @@ app.get('/api/partner/rent-payments', async (req, res) => {
     });
     const carIds = (carsResponse.data || []).map(car => car.id).filter(id => id != null);
     if (!carIds.length) return res.json({ transactions: [], count: 0 });
+    if (requestedCarId !== undefined && !carIds.some(id => String(id) === requestedCarId)) {
+      return res.status(403).json({ error: 'Выбранный автомобиль не принадлежит текущему партнёру' });
+    }
+    const filteredCarIds = requestedCarId === undefined ? carIds : [carIds.find(id => String(id) === requestedCarId)];
 
     const paymentsResponse = await axios.get(`${supabaseUrl}/rest/v1/ezhednevka`, {
       params: {
-        id_car: `in.(${carIds.join(',')})`,
+        id_car: `in.(${filteredCarIds.join(',')})`,
         and: `(created_at.gte.${from},created_at.lt.${to})`,
         or: `(type.eq.true,and(type.eq.false,nezavisimyi_rashod.eq.false,type_rashoda.in.(${financeExpenseTypes.map(type => `"${type}"`).join(',')})))`,
         select: 'data_car,created_at,type,cena_za_arendy,summa_rashoda,type_rashoda',
@@ -952,7 +965,12 @@ app.get('/api/partner/finance-summary', async (req, res) => {
   if (!userId) return res.status(401).json({ error: 'Сессия истекла. Войдите в аккаунт повторно' });
 
   const { from, to } = req.query;
-  if (!isValidFinanceRange(from, to)) {
+  const period = req.query.period;
+  const year = Number(req.query.year);
+  const month = Number(req.query.month);
+  const requestedCarId = req.query.car_id;
+  if (!isValidFinanceRange(from, to) || !isValidFinancePeriod(period, year, month) ||
+    (requestedCarId !== undefined && (typeof requestedCarId !== 'string' || !requestedCarId.trim() || requestedCarId.length > 64))) {
     return res.status(400).json({ error: 'Некорректный период итогов' });
   }
 
@@ -979,16 +997,21 @@ app.get('/api/partner/finance-summary', async (req, res) => {
       income: 0,
       expense: 0,
       expensesByType: [],
-      profitByWeek: Array(6).fill(0)
+      profitByPeriod: Array(period === 'year' ? 12 : period === 'quarter' ? 3 : 6).fill(0)
     });
+    if (requestedCarId !== undefined && !carIds.some(id => String(id) === requestedCarId)) {
+      return res.status(403).json({ error: 'Выбранный автомобиль не принадлежит текущему партнёру' });
+    }
+    const filteredCarIds = requestedCarId === undefined ? carIds : [carIds.find(id => String(id) === requestedCarId)];
 
-    const totals = { income: 0, expense: 0, expensesByType: new Map(), profitByWeek: Array(6).fill(0) };
+    const periodCount = period === 'year' ? 12 : period === 'quarter' ? 3 : 6;
+    const totals = { income: 0, expense: 0, expensesByType: new Map(), profitByPeriod: Array(periodCount).fill(0) };
     let offset = 0;
     let total = 0;
     do {
       const response = await axios.get(`${supabaseUrl}/rest/v1/ezhednevka`, {
         params: {
-          id_car: `in.(${carIds.join(',')})`,
+          id_car: `in.(${filteredCarIds.join(',')})`,
           and: `(created_at.gte.${from},created_at.lt.${to})`,
           or: `(type.eq.true,and(type.eq.false,nezavisimyi_rashod.eq.false,type_rashoda.in.(${financeExpenseTypes.map(type => `"${type}"`).join(',')})))`,
           select: 'created_at,type,cena_za_arendy,summa_rashoda,type_rashoda',
@@ -1006,18 +1029,23 @@ app.get('/api/partner/finance-summary', async (req, res) => {
       if (!Number.isFinite(rangeTotal)) throw new Error('Supabase did not return the exact finance summary count');
       total = rangeTotal;
       for (const row of response.data || []) {
-        const weekIndex = Math.max(0,Math.min(5,Math.floor((Date.parse(row.created_at) - Date.parse(from)) / (7 * 24 * 60 * 60 * 1000))));
+        const transactionDate = new Date(row.created_at);
+        const bucketIndex = period === 'month'
+          ? Math.floor((transactionDate.getUTCDate() - 1) / 7)
+          : transactionDate.getUTCFullYear() * 12 + transactionDate.getUTCMonth() -
+            (year * 12 + (period === 'quarter' ? Math.floor((month - 1) / 3) * 3 : 0));
+        const index = Math.max(0,Math.min(periodCount - 1,bucketIndex));
         if (row.type === true) {
           const amount = Number(row.cena_za_arendy);
           if (Number.isFinite(amount)) {
             totals.income += amount;
-            totals.profitByWeek[weekIndex] += amount;
+            totals.profitByPeriod[index] += amount;
           }
         } else if (row.type === false) {
           const amount = Number(row.summa_rashoda);
           if (Number.isFinite(amount)) {
             totals.expense += amount;
-            totals.profitByWeek[weekIndex] -= amount;
+            totals.profitByPeriod[index] -= amount;
             totals.expensesByType.set(row.type_rashoda, (totals.expensesByType.get(row.type_rashoda) || 0) + amount);
           }
         }
@@ -1031,7 +1059,7 @@ app.get('/api/partner/finance-summary', async (req, res) => {
       expensesByType: [...totals.expensesByType]
         .map(([type, amount]) => ({ type, amount }))
         .sort((a, b) => b.amount - a.amount),
-      profitByWeek: totals.profitByWeek.reduce((cumulative, amount, index) => {
+      profitByPeriod: totals.profitByPeriod.reduce((cumulative, amount, index) => {
         cumulative.push(amount + (index > 0 ? cumulative[index - 1] : 0));
         return cumulative;
       }, [])
