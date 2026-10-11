@@ -1330,13 +1330,10 @@ function renderCompanyInfo(company){
   const mark = document.createElement('div');
   mark.className = 'company-hero-mark';
   mark.textContent = '🏢';
-  const label = document.createElement('div');
-  label.className = 'company-hero-label';
-  label.textContent = 'Информация о компании';
   const heading = document.createElement('div');
   heading.className = 'company-hero-name';
   heading.textContent = name;
-  hero.append(mark, label, heading);
+  hero.append(mark, heading);
   content.appendChild(hero);
 
   const card = document.createElement('div');
