@@ -820,6 +820,46 @@ app.get('/api/partner/cars', async (req, res) => {
   }
 });
 
+app.get('/api/partner/company', async (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: 'Сессия истекла. Войдите в аккаунт повторно' });
+
+  try {
+    const profile = await findProfile(userId);
+    if (!profile) return res.status(404).json({ error: 'Профиль пользователя не найден' });
+    if (!profile.compani_id) return res.status(404).json({ error: 'Для профиля не указана компания' });
+
+    const response = await axios.get(`${supabaseUrl}/rest/v1/kompaniya`, {
+      params: {
+        id: `eq.${profile.compani_id}`,
+        select: '*',
+        limit: 1
+      },
+      headers: serviceHeaders(),
+      timeout: 10000
+    });
+    const company = response.data?.[0];
+    if (!company) return res.status(404).json({ error: 'Связанная компания не найдена' });
+
+    return res.json({
+      company: {
+        name: company.nameCompani ?? null,
+        city: company.city ?? null,
+        iinBin: company.iin ?? company.bin ?? company.iin_bin ?? company.bin_iin
+          ?? company['iin/bin'] ?? company.IIN ?? company.BIN ?? null,
+        email: company.email ?? null,
+        telephone: company.telephone ?? null
+      }
+    });
+  } catch (error) {
+    console.error('[Company] Ошибка загрузки компании:', {
+      status: error.response?.status || null,
+      details: error.response?.data || error.message
+    });
+    return res.status(502).json({ error: 'Не удалось загрузить информацию о компании' });
+  }
+});
+
 app.get('/api/partner/sublease-cars', async (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.status(401).json({ error: 'Сессия истекла. Войдите в аккаунт повторно' });

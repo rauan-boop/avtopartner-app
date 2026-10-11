@@ -225,6 +225,18 @@
   #security-phone-code-step .security-action{ background:#047857;}
   .security-hint{ margin-top:6px; color:var(--text-lo); font-size:11px; line-height:1.45;}
   .quick-access-method{ margin-bottom:12px;}
+  .company-hero{ padding:22px 18px; margin-bottom:14px; border-radius:20px; color:#fff; background:linear-gradient(135deg,#047857,#059669 55%,#34D399); box-shadow:0 12px 24px rgba(5,150,105,.2);}
+  .company-hero-mark{ width:52px; height:52px; margin-bottom:14px; border:1px solid rgba(255,255,255,.35); border-radius:16px; background:rgba(255,255,255,.16); display:flex; align-items:center; justify-content:center; font-size:25px;}
+  .company-hero-label{ color:rgba(255,255,255,.78); font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase;}
+  .company-hero-name{ margin-top:5px; font-size:21px; line-height:1.25; font-weight:800; overflow-wrap:anywhere;}
+  .company-info-list{ padding:4px 16px;}
+  .company-info-row{ display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding:14px 0; border-bottom:1px solid var(--line);}
+  .company-info-row:last-child{ border-bottom:0;}
+  .company-info-label{ color:var(--text-lo); font-size:12px; font-weight:600;}
+  .company-info-value{ color:var(--text-hi); font-size:13px; font-weight:700; text-align:right; overflow-wrap:anywhere;}
+  .company-info-state{ padding:18px 14px; color:var(--text-lo); font-size:13px; line-height:1.5; text-align:center;}
+  #fs-company .fs-title-wrap{ position:absolute; left:50%; width:max-content; transform:translateX(-50%); text-align:center;}
+  #fs-company .fs-back{ margin-left:auto; flex-shrink:0;}
   .pattern-grid{ display:block; width:min(100%,320px); margin:12px auto; touch-action:none; user-select:none;}
   .pattern-grid polyline{ fill:none; stroke:var(--blue2); stroke-width:8; stroke-linecap:round; stroke-linejoin:round;}
   .pattern-grid circle{ fill:var(--card); stroke:#9CA3AF; stroke-width:4;}
@@ -595,9 +607,9 @@
           <div><div class="quick-name">Уведомления</div><div class="quick-sub">Настройка уведомлений</div></div>
           <div class="quick-chev">›</div>
         </div>
-        <div class="quick-row" onclick="showToast('О компании ТОО «АвтоПрокат»')">
+        <div class="quick-row" onclick="openCompanyPage()">
           <div class="quick-icon" style="background:#EFEFF4;">🏢</div>
-          <div><div class="quick-name">О компании</div><div class="quick-sub">ТОО «АвтоПрокат»</div></div>
+          <div><div class="quick-name">О компании</div><div class="quick-sub" id="profile-company-name">Сведения о компании</div></div>
           <div class="quick-chev">›</div>
         </div>
         <div class="quick-row" onclick="showToast('Открыта поддержка')">
@@ -694,6 +706,16 @@
           <button class="my-data-action" id="my-data-save" type="submit" style="width:100%;margin-top:8px;">Сохранить изменения</button>
         </form>
       </div>
+    </div>
+
+    <div class="fullscreen" id="fs-company" aria-label="О компании">
+      <div class="fs-topbar">
+        <div class="fs-title-wrap"><div class="fs-title">О компании</div></div>
+        <button class="fs-back" type="button" aria-label="Назад" title="Назад" onclick="closeCompanyPage()">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"></path><path d="m12 19-7-7 7-7"></path></svg>
+        </button>
+      </div>
+      <div class="fs-body" id="company-info-content" aria-live="polite"></div>
     </div>
 
     <div class="fullscreen" id="fs-security" aria-label="Безопасность">
@@ -852,6 +874,7 @@ let subleaseCountRequestId = 0;
 let myDataReturnTab = 'profile';
 let myDataAvatarValue = null;
 let securityReturnTab = 'profile';
+let companyReturnTab = 'profile';
 let securityPhoneChangeRequestedPhone = '';
 let patternMode = '';
 let patternPhase = '';
@@ -1281,6 +1304,99 @@ function toDateInputValue(value){
 function closeMyDataPage(){
   document.getElementById('fs-my-data').style.display = 'none';
   switchTab(myDataReturnTab);
+}
+
+function openCompanyPage(){
+  companyReturnTab = ['home','cars','finance','analytics','profile'].find(tab =>
+    document.getElementById(`screen-${tab}`).style.display !== 'none'
+  ) || 'profile';
+  document.getElementById('fs-company').style.display = 'flex';
+  loadCompanyInfo();
+}
+
+function closeCompanyPage(){
+  document.getElementById('fs-company').style.display = 'none';
+  switchTab(companyReturnTab);
+}
+
+function renderCompanyInfo(company){
+  const content = document.getElementById('company-info-content');
+  content.replaceChildren();
+  const name = String(company.name || '').trim() || 'Компания';
+  document.getElementById('profile-company-name').textContent = String(company.name || '').trim() || 'Сведения о компании';
+
+  const hero = document.createElement('div');
+  hero.className = 'company-hero';
+  const mark = document.createElement('div');
+  mark.className = 'company-hero-mark';
+  mark.textContent = '🏢';
+  const label = document.createElement('div');
+  label.className = 'company-hero-label';
+  label.textContent = 'Информация о компании';
+  const heading = document.createElement('div');
+  heading.className = 'company-hero-name';
+  heading.textContent = name;
+  hero.append(mark, label, heading);
+  content.appendChild(hero);
+
+  const card = document.createElement('div');
+  card.className = 'white-card company-info-list';
+  const fields = [
+    ['Город', company.city],
+    ['ИИН / БИН', company.iinBin],
+    ['Электронная почта', company.email],
+    ['Телефон', company.telephone]
+  ];
+  fields.forEach(([fieldLabel, value])=>{
+    const row = document.createElement('div');
+    row.className = 'company-info-row';
+    const field = document.createElement('div');
+    field.className = 'company-info-label';
+    field.textContent = fieldLabel;
+    const fieldValue = document.createElement('div');
+    fieldValue.className = 'company-info-value';
+    fieldValue.textContent = String(value ?? '').trim() || 'Не указано';
+    row.append(field, fieldValue);
+    card.appendChild(row);
+  });
+  content.appendChild(card);
+}
+
+async function loadCompanyInfo(){
+  const content = document.getElementById('company-info-content');
+  content.replaceChildren();
+  const loading = document.createElement('div');
+  loading.className = 'white-card company-info-state';
+  loading.textContent = 'Загружаем информацию о компании…';
+  content.appendChild(loading);
+  try{
+    if(!AppState.sessionToken) throw new Error('Войдите в аккаунт, чтобы посмотреть информацию о компании.');
+    if(!AppState.compani_id) throw new Error('Для вашего профиля не указана компания.');
+    const response = await fetch('/api/partner/company', {
+      headers:{Authorization:'Bearer ' + AppState.sessionToken}
+    });
+    const result = await response.json().catch(()=>({}));
+    if(!(response.headers.get('content-type') || '').includes('application/json')){
+      throw new Error(`Сервис компании вернул не JSON (HTTP ${response.status}).`);
+    }
+    if(!response.ok) throw new Error(result.error || 'Не удалось загрузить информацию о компании.');
+    if(!result.company) throw new Error('Для профиля не найдена связанная компания.');
+    renderCompanyInfo(result.company);
+  }catch(error){
+    console.error('[Company] Ошибка загрузки информации о компании:', error);
+    content.replaceChildren();
+    const state = document.createElement('div');
+    state.className = 'white-card company-info-state';
+    state.textContent = error.message || 'Не удалось загрузить информацию о компании.';
+    const retry = document.createElement('button');
+    retry.type = 'button';
+    retry.className = 'security-action';
+    retry.style.marginTop = '12px';
+    retry.textContent = 'Повторить';
+    retry.addEventListener('click', loadCompanyInfo);
+    state.appendChild(retry);
+    content.appendChild(state);
+  }
 }
 
 function openSecurityPage(){
