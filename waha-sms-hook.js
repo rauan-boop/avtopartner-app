@@ -632,12 +632,14 @@ app.get('/api/partner/cars', async (req, res) => {
   try {
     const profile = await findProfile(userId);
     if (!profile) return res.status(404).json({ error: 'Профиль пользователя не найден' });
-    if (profile.compani_id == null) return res.json({ cars: [], count: 0 });
 
+    const filterValue = value => value == null ? 'is.null' : `eq.${value}`;
     const response = await axios.get(`${supabaseUrl}/rest/v1/cars`, {
       params: {
-        hozyain_id: `eq.${profile.compani_id}`,
-        arhive: 'eq.false',
+        hozyain_id: `eq.${userId}`,
+        kompaniya_id: filterValue(profile.compani_id),
+        cityID: filterValue(profile.city_id),
+        arfive: 'eq.false',
         select: 'id,marka,model,gos_nomer,photo_avto',
         order: 'id.asc'
       },
@@ -647,7 +649,6 @@ app.get('/api/partner/cars', async (req, res) => {
     const total = Number(response.headers['content-range']?.split('/')[1]);
     const cars = response.data || [];
     if (cars.length) {
-      const filterValue = value => value == null ? 'is.null' : `eq.${value}`;
       const contractsResponse = await axios.get(`${supabaseUrl}/rest/v1/contracts`, {
         params: {
           car_hozyain_id: `eq.${userId}`,
