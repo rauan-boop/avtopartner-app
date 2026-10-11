@@ -237,6 +237,13 @@
   .company-info-state{ padding:18px 14px; color:var(--text-lo); font-size:13px; line-height:1.5; text-align:center;}
   #fs-company .fs-title-wrap{ position:absolute; left:50%; width:max-content; transform:translateX(-50%); text-align:center;}
   #fs-company .fs-back{ margin-left:auto; flex-shrink:0;}
+  .support-card{ padding:18px; margin-bottom:14px;}
+  .support-contact-title{ color:var(--text-hi); font-size:15px; font-weight:800;}
+  .support-contact-note{ margin-top:5px; color:var(--text-lo); font-size:12px; line-height:1.45;}
+  .support-whatsapp-button{ display:flex; align-items:center; justify-content:center; gap:9px; width:100%; min-height:46px; margin-top:14px; padding:12px 16px; border:0; border-radius:13px; background:#25D366; color:#fff; font:inherit; font-size:13px; font-weight:800; text-decoration:none;}
+  .support-whatsapp-button:active{ transform:scale(.98);}
+  #fs-support .fs-title-wrap{ position:absolute; left:50%; width:max-content; transform:translateX(-50%); text-align:center;}
+  #fs-support .fs-back{ margin-left:auto; flex-shrink:0;}
   .pattern-grid{ display:block; width:min(100%,320px); margin:12px auto; touch-action:none; user-select:none;}
   .pattern-grid polyline{ fill:none; stroke:var(--blue2); stroke-width:8; stroke-linecap:round; stroke-linejoin:round;}
   .pattern-grid circle{ fill:var(--card); stroke:#9CA3AF; stroke-width:4;}
@@ -612,9 +619,9 @@
           <div><div class="quick-name">О компании</div><div class="quick-sub" id="profile-company-name">Сведения о компании</div></div>
           <div class="quick-chev">›</div>
         </div>
-        <div class="quick-row" onclick="showToast('Открыта поддержка')">
+        <div class="quick-row" onclick="openSupportPage()">
           <div class="quick-icon" style="background:var(--blue-soft);">🎧</div>
-          <div><div class="quick-name">Поддержка</div><div class="quick-sub">Связаться с поддержкой</div></div>
+          <div><div class="quick-name">Поддержка</div><div class="quick-sub">Связаться со службой поддержки</div></div>
           <div class="quick-chev">›</div>
         </div>
       </div>
@@ -716,6 +723,33 @@
         </button>
       </div>
       <div class="fs-body" id="company-info-content" aria-live="polite"></div>
+    </div>
+
+    <div class="fullscreen" id="fs-support" aria-label="Техническая поддержка">
+      <div class="fs-topbar">
+        <div class="fs-title-wrap"><div class="fs-title">Техническая поддержка</div></div>
+        <button class="fs-back" type="button" aria-label="Назад" title="Назад" onclick="closeSupportPage()">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"></path><path d="m12 19-7-7 7-7"></path></svg>
+        </button>
+      </div>
+      <div class="fs-body">
+        <div class="white-card support-card">
+          <div class="support-contact-title">Менеджер по работе с клиентами</div>
+          <div class="support-contact-note">Свяжитесь с менеджером в WhatsApp.</div>
+          <a class="support-whatsapp-button" href="https://wa.me/77770069292" target="_blank" rel="noopener noreferrer">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 11.5a8.5 8.5 0 0 1-12.6 7.4L3 20l1.1-4.7A8.5 8.5 0 1 1 20.5 11.5Z"></path><path d="M8.5 8.5c.6 2.4 2.6 4.4 5 5l1.2-1.2 2 .7c-.2 1.1-.9 1.8-2 1.8-3.9-.2-7-3.3-7.2-7.2 0-1.1.7-1.8 1.8-2l.7 2-1.5.9Z"></path></svg>
+            Написать в WhatsApp
+          </a>
+        </div>
+        <div class="white-card support-card">
+          <div class="support-contact-title">Администрация</div>
+          <div class="support-contact-note">Для связи с администрацией напишите в WhatsApp.</div>
+          <a class="support-whatsapp-button" href="https://wa.me/77089849230" target="_blank" rel="noopener noreferrer">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 11.5a8.5 8.5 0 0 1-12.6 7.4L3 20l1.1-4.7A8.5 8.5 0 1 1 20.5 11.5Z"></path><path d="M8.5 8.5c.6 2.4 2.6 4.4 5 5l1.2-1.2 2 .7c-.2 1.1-.9 1.8-2 1.8-3.9-.2-7-3.3-7.2-7.2 0-1.1.7-1.8 1.8-2l.7 2-1.5.9Z"></path></svg>
+            Написать в WhatsApp
+          </a>
+        </div>
+      </div>
     </div>
 
     <div class="fullscreen" id="fs-security" aria-label="Безопасность">
@@ -875,6 +909,7 @@ let myDataReturnTab = 'profile';
 let myDataAvatarValue = null;
 let securityReturnTab = 'profile';
 let companyReturnTab = 'profile';
+let supportReturnTab = 'profile';
 let securityPhoneChangeRequestedPhone = '';
 let patternMode = '';
 let patternPhase = '';
@@ -1317,6 +1352,18 @@ function openCompanyPage(){
 function closeCompanyPage(){
   document.getElementById('fs-company').style.display = 'none';
   switchTab(companyReturnTab);
+}
+
+function openSupportPage(){
+  supportReturnTab = ['home','cars','finance','analytics','profile'].find(tab =>
+    document.getElementById(`screen-${tab}`).style.display !== 'none'
+  ) || 'profile';
+  document.getElementById('fs-support').style.display = 'flex';
+}
+
+function closeSupportPage(){
+  document.getElementById('fs-support').style.display = 'none';
+  switchTab(supportReturnTab);
 }
 
 function renderCompanyInfo(company){
