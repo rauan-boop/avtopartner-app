@@ -80,6 +80,7 @@
   .sec-head{ display:flex; justify-content:space-between; align-items:baseline; margin:16px 0 10px;}
   .sec-title{ color:var(--text-hi); font-size:15px; font-weight:700;}
   .sec-link{ color:var(--blue2); font-size:12.5px; font-weight:600; cursor:pointer;}
+  .sec-link-button{ border:0; background:transparent; padding:0; font:inherit; line-height:inherit;}
 
   .car-row{ display:flex; align-items:center; gap:12px; background:var(--card); border:1px solid var(--line); border-radius:16px; padding:12px 14px; margin-bottom:10px; cursor:pointer; transition:transform .15s; box-shadow:0 5px 14px rgba(31,41,55,.05);}
   .car-row.home-car-row{ cursor:default;}
@@ -517,7 +518,7 @@
         <div class="chart-labels" id="finance-chart-labels"></div>
       </div>
 
-      <div class="sec-head"><div class="sec-title">Структура расходов</div><div class="sec-link" onclick="openExpenseSheet()">Смотреть все</div></div>
+      <div class="sec-head"><div class="sec-title">Структура расходов</div><button class="sec-link sec-link-button" id="open-expense-sheet" type="button" onclick="openExpenseSheet()">Смотреть все</button></div>
       <div id="expense-list"></div>
       <div class="finance-tx-status" id="finance-summary-status" role="status" aria-live="polite"></div>
 
@@ -2898,27 +2899,99 @@ function showToast(msg){
   clearTimeout(toastTimer); toastTimer = setTimeout(()=>t.classList.remove('show'), 2200);
 }
 
-function openExpenseSheet(){
-  const all = financeSummary.expensesByType;
-  const total = financeSummary.expense;
-  const month = new Intl.DateTimeFormat('ru-RU',{month:'long',year:'numeric'}).format(financeSelectedMonth);
-  const cards = all.map(expense=>{
-    const style = FINANCE_EXPENSE_STYLES[expense.type] || FINANCE_EXPENSE_STYLES.Другое;
-    const percent = total > 0 ? Math.round(expense.amount / total * 100) : 0;
-    return `<div class="exp-card">
-      <div class="exp-top"><div class="exp-icon" style="background:${style.bg}">${style.icon}</div><div class="exp-name">${expense.type}</div><div class="exp-amt">${fmt(expense.amount)}</div><div class="exp-pct">${percent}%</div></div>
-      <div class="exp-bar-bg"><div class="exp-bar-fg" style="width:${Math.min(percent,100)}%;background:${style.color};"></div></div>
-    </div>`;
-  }).join('');
-  document.getElementById('sheet-content').innerHTML = `
-    <div class="close-x" onclick="closeSheet()">✕</div>
-    <div class="sheet-handle"></div>
-    <div style="font-size:17px; font-weight:800; color:var(--text-hi); margin-bottom:16px;">Все расходы — ${month}</div>
-    ${cards || '<div style="color:var(--text-lo);font-size:13px;">Расходов за выбранный месяц нет.</div>'}
-  `;
-  document.getElementById('sheet-overlay').classList.add('show');
+function getFinancePeriodLabel(){
+  if(financeSelectedPeriod === 'year') return String(financeSelectedMonth.getFullYear());
+  if(financeSelectedPeriod === 'quarter'){
+    const quarter = Math.floor(financeSelectedMonth.getMonth()/3);
+    return `${['I','II','III','IV'][quarter]} квартал ${financeSelectedMonth.getFullYear()}`;
+  }
+  return new Intl.DateTimeFormat('ru-RU',{month:'long',year:'numeric'}).format(financeSelectedMonth);
 }
-function closeSheet(){ document.getElementById('sheet-overlay').classList.remove('show'); }
+
+function openExpenseSheet(){
+  const content = document.getElementById('sheet-content');
+  content.replaceChildren();
+  content.setAttribute('role','dialog');
+  content.setAttribute('aria-modal','true');
+  content.setAttribute('aria-labelledby','expense-sheet-title');
+
+  const closeButton = document.createElement('button');
+  closeButton.type = 'button';
+  closeButton.className = 'close-x';
+  closeButton.setAttribute('aria-label','Закрыть структуру расходов');
+  closeButton.textContent = '✕';
+  closeButton.addEventListener('click',closeSheet);
+
+  const handle = document.createElement('div');
+  handle.className = 'sheet-handle';
+  const title = document.createElement('div');
+  title.id = 'expense-sheet-title';
+  title.style.cssText = 'font-size:17px;font-weight:800;color:var(--text-hi);margin-bottom:6px;padding-right:36px;';
+  title.textContent = `Структура расходов — ${getFinancePeriodLabel()}`;
+  const selectedChip = document.querySelector('#car-chip-row .chip.active');
+  const carLabel = document.createElement('div');
+  carLabel.style.cssText = 'font-size:12px;color:var(--text-lo);margin-bottom:14px;';
+  carLabel.textContent = selectedChip?.dataset.car === 'all' || !selectedChip
+    ? 'Все машины'
+    : selectedChip.textContent;
+  const total = document.createElement('div');
+  total.className = 'sum-card';
+  total.style.cursor = 'default';
+  const totalLabel = document.createElement('div');
+  totalLabel.className = 'sum-label r';
+  totalLabel.textContent = 'Всего расходов';
+  const totalAmount = document.createElement('div');
+  totalAmount.className = 'sum-num';
+  totalAmount.textContent = fmt(financeSummary.expense);
+  total.append(totalLabel,totalAmount);
+  const list = document.createElement('div');
+
+  financeSummary.expensesByType.forEach(expense=>{
+    const style = FINANCE_EXPENSE_STYLES[expense.type] || FINANCE_EXPENSE_STYLES.Другое;
+    const percent = financeSummary.expense > 0 ? Math.round(expense.amount / financeSummary.expense * 100) : 0;
+    const card = document.createElement('div');
+    card.className = 'exp-card';
+    const top = document.createElement('div');
+    top.className = 'exp-top';
+    const icon = document.createElement('div');
+    icon.className = 'exp-icon';
+    icon.style.background = style.bg;
+    icon.textContent = style.icon;
+    const name = document.createElement('div');
+    name.className = 'exp-name';
+    name.textContent = expense.type;
+    const amount = document.createElement('div');
+    amount.className = 'exp-amt';
+    amount.textContent = fmt(expense.amount);
+    const share = document.createElement('div');
+    share.className = 'exp-pct';
+    share.textContent = `${percent}%`;
+    top.append(icon,name,amount,share);
+    const barBackground = document.createElement('div');
+    barBackground.className = 'exp-bar-bg';
+    const bar = document.createElement('div');
+    bar.className = 'exp-bar-fg';
+    bar.style.width = `${Math.min(percent,100)}%`;
+    bar.style.background = style.color;
+    barBackground.appendChild(bar);
+    card.append(top,barBackground);
+    list.appendChild(card);
+  });
+
+  content.append(closeButton,handle,title,carLabel,total,list);
+  if(!financeSummary.expensesByType.length){
+    const empty = document.createElement('div');
+    empty.style.cssText = 'color:var(--text-lo);font-size:13px;padding:8px 0;';
+    empty.textContent = 'Расходов за выбранный период нет.';
+    content.appendChild(empty);
+  }
+  document.getElementById('sheet-overlay').classList.add('show');
+  closeButton.focus();
+}
+function closeSheet(){
+  document.getElementById('sheet-overlay').classList.remove('show');
+  document.getElementById('open-expense-sheet').focus();
+}
 function closeSheetOnOverlay(e){ if(e.target.id==='sheet-overlay') closeSheet(); }
 
 let cdReturnTab = 'home';
