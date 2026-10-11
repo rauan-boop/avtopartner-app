@@ -860,6 +860,26 @@ app.get('/api/partner/company', async (req, res) => {
   }
 });
 
+const financeExpenseTypes = [
+  'Оформление технического осмотра',
+  'Замена масла ДВС и АКПП',
+  'Ремонт авто',
+  'Ежемесячный расход',
+  'Оформление страховки',
+  'Проведение ТО у дилера',
+  'Замена масла в ДВС',
+  'Замена масла в АКПП',
+  'Другое'
+];
+
+function isValidFinanceRange(from, to) {
+  const isIsoTimestamp = value => typeof value === 'string' &&
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value) &&
+    Number.isFinite(Date.parse(value)) &&
+    new Date(value).toISOString() === value;
+  return isIsoTimestamp(from) && isIsoTimestamp(to) && Date.parse(from) < Date.parse(to);
+}
+
 app.get('/api/partner/rent-payments', async (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.status(401).json({ error: 'Сессия истекла. Войдите в аккаунт повторно' });
@@ -870,26 +890,11 @@ app.get('/api/partner/rent-payments', async (req, res) => {
   }
 
   const { from, to } = req.query;
-  const isIsoTimestamp = value => typeof value === 'string' &&
-    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value) &&
-    Number.isFinite(Date.parse(value)) &&
-    new Date(value).toISOString() === value;
-  if (!isIsoTimestamp(from) || !isIsoTimestamp(to) || Date.parse(from) >= Date.parse(to)) {
+  if (!isValidFinanceRange(from, to)) {
     return res.status(400).json({ error: 'Некорректный период операций' });
   }
 
   const pageSize = 20;
-  const expenseTypes = [
-    'Оформление технического осмотра',
-    'Замена масла ДВС и АКПП',
-    'Ремонт авто',
-    'Ежемесячный расход',
-    'Оформление страховки',
-    'Проведение ТО у дилера',
-    'Замена масла в ДВС',
-    'Замена масла в АКПП',
-    'Другое'
-  ];
   try {
     const profile = await findProfile(userId);
     if (!profile) return res.status(404).json({ error: 'Профиль пользователя не найден' });
@@ -914,7 +919,7 @@ app.get('/api/partner/rent-payments', async (req, res) => {
       params: {
         id_car: `in.(${carIds.join(',')})`,
         and: `(created_at.gte.${from},created_at.lt.${to})`,
-        or: `(type.eq.true,and(type.eq.false,nezavisimyi_rashod.eq.false,type_rashoda.in.(${expenseTypes.map(type => `"${type}"`).join(',')})))`,
+        or: `(type.eq.true,and(type.eq.false,nezavisimyi_rashod.eq.false,type_rashoda.in.(${financeExpenseTypes.map(type => `"${type}"`).join(',')})))`,
         select: 'data_car,created_at,type,cena_za_arendy,summa_rashoda,type_rashoda',
         order: 'created_at.desc'
       },
@@ -939,6 +944,104 @@ app.get('/api/partner/rent-payments', async (req, res) => {
       details: error.response?.data || error.message
     });
     return res.status(502).json({ error: 'Не удалось загрузить финансовые операции' });
+  }
+});
+
+app.get('/api/partner/finance-summary', async (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: 'Сессия истекла. Войдите в аккаунт повторно' });
+
+  const { from, to } = req.query;
+  if (!isValidFinanceRange(from, to)) {
+    return res.status(400).json({ error: 'Некорректный период итогов' });
+  }
+
+  const batchSize = 1000;
+  try {
+    const profile = await findProfile(userId);
+    if (!profile) return res.status(404).json({ error: 'Профиль пользователя не найден' });
+
+    const filterValue = value => value == null ? 'is.null' : `eq.${value}`;
+    const carsResponse = await axios.get(`${supabaseUrl}/rest/v1/cars`, {
+      params: {
+        hozyain_id: `eq.${userId}`,
+        kompaniya_id: filterValue(profile.compani_id),
+        cityID: filterValue(profile.city_id),
+        arfive: 'eq.false',
+        select: 'id',
+        order: 'id.asc'
+      },
+      headers: { ...serviceHeaders(), Prefer: 'count=exact' },
+      timeout: 10000
+    });
+    const carIds = (carsResponse.data || []).map(car => car.id).filter(id => id != null);
+    if (!carIds.length) return res.json({
+      income: 0,
+      expense: 0,
+      expensesByType: [],
+      profitByWeek: Array(6).fill(0)
+    });
+
+    const totals = { income: 0, expense: 0, expensesByType: new Map(), profitByWeek: Array(6).fill(0) };
+    let offset = 0;
+    let total = 0;
+    do {
+      const response = await axios.get(`${supabaseUrl}/rest/v1/ezhednevka`, {
+        params: {
+          id_car: `in.(${carIds.join(',')})`,
+          and: `(created_at.gte.${from},created_at.lt.${to})`,
+          or: `(type.eq.true,and(type.eq.false,nezavisimyi_rashod.eq.false,type_rashoda.in.(${financeExpenseTypes.map(type => `"${type}"`).join(',')})))`,
+          select: 'created_at,type,cena_za_arendy,summa_rashoda,type_rashoda',
+          order: 'created_at.desc'
+        },
+        headers: {
+          ...serviceHeaders(),
+          Prefer: 'count=exact',
+          'Range-Unit': 'items',
+          Range: `${offset}-${offset + batchSize - 1}`
+        },
+        timeout: 10000
+      });
+      const rangeTotal = Number(response.headers['content-range']?.split('/')[1]);
+      if (!Number.isFinite(rangeTotal)) throw new Error('Supabase did not return the exact finance summary count');
+      total = rangeTotal;
+      for (const row of response.data || []) {
+        const weekIndex = Math.max(0,Math.min(5,Math.floor((Date.parse(row.created_at) - Date.parse(from)) / (7 * 24 * 60 * 60 * 1000))));
+        if (row.type === true) {
+          const amount = Number(row.cena_za_arendy);
+          if (Number.isFinite(amount)) {
+            totals.income += amount;
+            totals.profitByWeek[weekIndex] += amount;
+          }
+        } else if (row.type === false) {
+          const amount = Number(row.summa_rashoda);
+          if (Number.isFinite(amount)) {
+            totals.expense += amount;
+            totals.profitByWeek[weekIndex] -= amount;
+            totals.expensesByType.set(row.type_rashoda, (totals.expensesByType.get(row.type_rashoda) || 0) + amount);
+          }
+        }
+      }
+      offset += batchSize;
+    } while (offset < total);
+
+    return res.json({
+      income: totals.income,
+      expense: totals.expense,
+      expensesByType: [...totals.expensesByType]
+        .map(([type, amount]) => ({ type, amount }))
+        .sort((a, b) => b.amount - a.amount),
+      profitByWeek: totals.profitByWeek.reduce((cumulative, amount, index) => {
+        cumulative.push(amount + (index > 0 ? cumulative[index - 1] : 0));
+        return cumulative;
+      }, [])
+    });
+  } catch (error) {
+    console.error('[Finance] Ошибка подсчета месячных итогов:', {
+      status: error.response?.status || null,
+      details: error.response?.data || error.message
+    });
+    return res.status(502).json({ error: 'Не удалось подсчитать финансовые итоги за месяц' });
   }
 });
 
