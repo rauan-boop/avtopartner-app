@@ -216,6 +216,9 @@
   .security-phone-editor{ display:none; margin-top:12px;}
   .security-phone-editor.open{ display:block;}
   .security-input{ width:100%; border:1px solid var(--line); border-radius:12px; padding:12px; background:var(--bg); color:var(--text-hi); font:inherit; font-size:14px;}
+  .security-phone-input-wrap{ display:flex; align-items:center; gap:8px; margin-top:12px; padding:0 12px; border:1px solid var(--line); border-radius:12px; background:var(--bg);}
+  .security-phone-prefix{ color:var(--text-hi); font-size:14px; font-weight:700;}
+  .security-phone-input-wrap .security-input{ min-width:0; border:0; background:transparent; padding-left:0; padding-right:0; outline:0;}
   .security-action{ width:100%; min-height:44px; border:0; border-radius:12px; padding:11px 14px; background:var(--blue2); color:#fff; font:inherit; font-size:13px; font-weight:800; cursor:pointer;}
   .security-action:disabled{ opacity:.55; cursor:wait;}
   .security-action.secondary{ background:var(--blue-soft); color:var(--blue2);}
@@ -695,7 +698,7 @@
             <button class="security-link-button" id="security-phone-edit-toggle" type="button" onclick="toggleSecurityPhoneEditor()">Изменить</button>
           </div>
           <div class="security-phone-editor" id="security-phone-editor">
-            <input class="security-input" id="security-phone-input" type="tel" inputmode="numeric" autocomplete="tel" maxlength="16" placeholder="+7 ___ ___ __ __" oninput="handleSecurityPhoneInput(this)">
+            <div class="security-phone-input-wrap"><span class="security-phone-prefix">+7</span><input class="security-input" id="security-phone-input" type="tel" inputmode="numeric" autocomplete="tel" maxlength="13" placeholder="777 777 77 77" oninput="handleSecurityPhoneInput(this)"></div>
             <button class="security-action secondary" id="security-phone-send-code" type="button" style="margin-top:10px;" onclick="requestSecurityPhoneCode()">Отправить код на новый номер</button>
             <div id="security-phone-code-step" style="display:none;margin-top:10px;">
               <input class="security-input" id="security-phone-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="Код из WhatsApp">
@@ -1245,11 +1248,28 @@ function toggleSecurityPhoneEditor(){
 }
 
 function handleSecurityPhoneInput(input){
-  let digits = input.value.replace(/\D/g, '');
-  if(digits.length === 11 && (digits[0] === '7' || digits[0] === '8')) digits = digits.slice(1);
+  const originalValue = input.value;
+  const originalCaret = input.selectionStart ?? originalValue.length;
+  let digitsBeforeCaret = originalValue.slice(0, originalCaret).replace(/\D/g, '').length;
+  let digits = originalValue.replace(/\D/g, '');
+  if(digits.length > 10 && (digits[0] === '7' || digits[0] === '8')){
+    digits = digits.slice(1);
+    digitsBeforeCaret = Math.max(0, digitsBeforeCaret - 1);
+  }
   digits = digits.slice(0, 10);
   const groups = [digits.slice(0,3), digits.slice(3,6), digits.slice(6,8), digits.slice(8,10)].filter(Boolean);
-  input.value = '+7 ' + groups.join(' ');
+  const formatted = groups.join(' ');
+  input.value = formatted;
+  let caretPosition = 0;
+  let countedDigits = 0;
+  while(caretPosition < formatted.length && countedDigits < digitsBeforeCaret){
+    if(/\d/.test(formatted[caretPosition])) countedDigits++;
+    caretPosition++;
+  }
+  if(countedDigits === digitsBeforeCaret && /\s/.test(formatted[caretPosition] || '')){
+    caretPosition++;
+  }
+  input.setSelectionRange(caretPosition, caretPosition);
   document.getElementById('security-phone-message').textContent = '';
 }
 
