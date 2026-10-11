@@ -1,6 +1,7 @@
 const express = require('express');
 const axios = require('axios');
 const crypto = require('crypto');
+const { promisify } = require('util');
 const {
   generateAuthenticationOptions,
   generateRegistrationOptions,
@@ -22,6 +23,8 @@ const webauthnRpId = process.env.WEBAUTHN_RP_ID || 'partner.ronat.asia';
 const webauthnOrigin = process.env.WEBAUTHN_ORIGIN || 'https://partner.ronat.asia';
 const webauthnChallengeTtlMs = 5 * 60 * 1000;
 const webauthnChallenges = new Map();
+const patternLoginAttempts = new Map();
+const scryptAsync = promisify(crypto.scrypt);
 
 app.use(express.json({ limit: '1mb' }));
 
@@ -66,6 +69,32 @@ function createSessionToken(userId) {
   })).toString('base64url');
   const signature = crypto.createHmac('sha256', supabaseServiceRoleKey).update(payload).digest('base64url');
   return `${payload}.${signature}`;
+}
+
+function isValidPattern(pattern) {
+  return typeof pattern === 'string'
+    && /^[1-9]{5,9}$/.test(pattern)
+    && new Set(pattern).size === pattern.length;
+}
+
+function getPatternLoginLock(phone) {
+  const attempts = patternLoginAttempts.get(phone);
+  if (!attempts) return null;
+  const now = Date.now();
+  if (attempts.lockedUntil > now) return attempts.lockedUntil;
+  if (attempts.expiresAt <= now) patternLoginAttempts.delete(phone);
+  return null;
+}
+
+function recordPatternLoginFailure(phone) {
+  const attempts = patternLoginAttempts.get(phone) || { count: 0 };
+  attempts.count += 1;
+  attempts.expiresAt = Date.now() + 15 * 60 * 1000;
+  if (attempts.count >= 5) {
+    attempts.count = 0;
+    attempts.lockedUntil = attempts.expiresAt;
+  }
+  patternLoginAttempts.set(phone, attempts);
 }
 
 function getSessionUserId(req) {
@@ -141,6 +170,17 @@ function webauthnErrorResponse(res, error, label) {
     return res.status(503).json({ error: 'Хранилище ключей входа не настроено. Выполните миграцию passkeys.sql в Supabase.' });
   }
   return res.status(502).json({ error: `Не удалось выполнить ${label}. Проверьте настройки WebAuthn и Supabase.` });
+}
+
+function patternErrorResponse(res, error, label) {
+  console.error(`[Pattern] Ошибка ${label}:`, {
+    status: error.response?.status || null,
+    details: error.response?.data || error.message
+  });
+  if (error.response?.status === 404) {
+    return res.status(503).json({ error: 'Хранилище графических ключей не настроено. Выполните миграцию quick_access_patterns.sql в Supabase.' });
+  }
+  return res.status(502).json({ error: `Не удалось выполнить ${label}. Проверьте подключение к Supabase.` });
 }
 
 async function sendOtp(phone, otp, purpose = 'входа') {
@@ -353,6 +393,104 @@ app.get('/api/auth/passkey/status', async (req, res) => {
     return res.json({ hasPasskey: hasDevicePasskey });
   } catch (error) {
     return webauthnErrorResponse(res, error, 'проверку ключа входа');
+  }
+});
+
+app.get('/api/auth/pattern/status', async (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: 'Сессия истекла. Войдите по номеру телефона' });
+  try {
+    const response = await axios.get(`${supabaseUrl}/rest/v1/quick_access_patterns`, {
+      params: { user_id: `eq.${userId}`, select: 'user_id', limit: 1 },
+      headers: serviceHeaders(),
+      timeout: 10000
+    });
+    return res.json({ hasPattern: Boolean(response.data?.length) });
+  } catch (error) {
+    return patternErrorResponse(res, error, 'проверку графического ключа');
+  }
+});
+
+app.post('/api/auth/pattern/register', async (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: 'Сессия истекла. Войдите по номеру телефона' });
+  const pattern = req.body?.pattern;
+  if (!isValidPattern(pattern)) {
+    return res.status(400).json({ error: 'Графический ключ должен содержать от 5 до 9 разных точек' });
+  }
+
+  try {
+    const salt = crypto.randomBytes(16).toString('base64url');
+    const patternHash = (await scryptAsync(pattern, salt, 64)).toString('base64url');
+    await axios.post(`${supabaseUrl}/rest/v1/quick_access_patterns`, {
+      user_id: userId,
+      pattern_salt: salt,
+      pattern_hash: patternHash
+    }, {
+      params: { on_conflict: 'user_id' },
+      headers: { ...serviceHeaders(), Prefer: 'resolution=merge-duplicates,return=minimal' },
+      timeout: 10000
+    });
+    return res.json({ ok: true });
+  } catch (error) {
+    return patternErrorResponse(res, error, 'сохранение графического ключа');
+  }
+});
+
+app.post('/api/auth/pattern/login', async (req, res) => {
+  const phone = normalizePhone(req.body?.phone);
+  const pattern = req.body?.pattern;
+  if (phone.length !== 11 || !phone.startsWith('7') || !isValidPattern(pattern)) {
+    return res.status(400).json({ error: 'Введите номер телефона и корректный графический ключ' });
+  }
+  const lockedUntil = getPatternLoginLock(phone);
+  if (lockedUntil) {
+    return res.status(429).json({ error: 'Слишком много попыток. Повторите вход через 15 минут или войдите по коду из WhatsApp' });
+  }
+
+  try {
+    const user = await findAuthUser(phone);
+    if (!user?.id) {
+      recordPatternLoginFailure(phone);
+      return res.status(401).json({ error: 'Номер телефона или графический ключ не совпадают' });
+    }
+    const patternResponse = await axios.get(`${supabaseUrl}/rest/v1/quick_access_patterns`, {
+      params: {
+        user_id: `eq.${user.id}`,
+        select: 'pattern_salt,pattern_hash',
+        limit: 1
+      },
+      headers: serviceHeaders(),
+      timeout: 10000
+    });
+    const savedPattern = patternResponse.data?.[0];
+    if (!savedPattern) {
+      recordPatternLoginFailure(phone);
+      return res.status(401).json({ error: 'Номер телефона или графический ключ не совпадают' });
+    }
+    const attemptedHash = await scryptAsync(pattern, savedPattern.pattern_salt, 64);
+    const savedHash = Buffer.from(savedPattern.pattern_hash, 'base64url');
+    if (attemptedHash.length !== savedHash.length || !crypto.timingSafeEqual(attemptedHash, savedHash)) {
+      recordPatternLoginFailure(phone);
+      return res.status(401).json({ error: 'Номер телефона или графический ключ не совпадают' });
+    }
+
+    patternLoginAttempts.delete(phone);
+    const profile = await findProfile(user.id);
+    if (!profile) return res.status(404).json({ error: 'Профиль пользователя не найден' });
+    return res.json({
+      ok: true,
+      uid: user.id,
+      profile,
+      sessionToken: createSessionToken(user.id)
+    });
+  } catch (error) {
+    if (error.response?.status === 404) return patternErrorResponse(res, error, 'вход по графическому ключу');
+    console.error('[Auth] Ошибка входа по графическому ключу:', {
+      status: error.response?.status || null,
+      details: error.response?.data || error.message
+    });
+    return res.status(502).json({ error: 'Не удалось выполнить вход по графическому ключу. Попробуйте позже' });
   }
 });
 

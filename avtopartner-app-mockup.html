@@ -224,6 +224,16 @@
   .security-action.secondary{ background:var(--blue-soft); color:var(--blue2);}
   #security-phone-code-step .security-action{ background:#047857;}
   .security-hint{ margin-top:6px; color:var(--text-lo); font-size:11px; line-height:1.45;}
+  .quick-access-method{ margin-bottom:12px;}
+  .pattern-grid{ display:block; width:min(100%,320px); margin:12px auto; touch-action:none; user-select:none;}
+  .pattern-grid polyline{ fill:none; stroke:var(--blue2); stroke-width:8; stroke-linecap:round; stroke-linejoin:round;}
+  .pattern-grid circle{ fill:var(--card); stroke:#9CA3AF; stroke-width:4;}
+  .pattern-grid circle.selected{ fill:var(--blue2); stroke:var(--blue2);}
+  .pattern-status{ min-height:20px; color:var(--text-lo); font-size:12px; text-align:center;}
+  .pattern-phone{ margin-bottom:10px;}
+  #fs-pattern{ z-index:300;}
+  #fs-quick-access .fs-title-wrap,#fs-pattern .fs-title-wrap{ position:absolute; left:50%; width:max-content; transform:translateX(-50%); text-align:center;}
+  #fs-quick-access .fs-back,#fs-pattern .fs-back{ margin-left:auto; flex-shrink:0;}
 
   /* car detail full screen */
   .fullscreen{ position:absolute; inset:0; background:var(--bg); z-index:40; display:none; flex-direction:column;}
@@ -353,9 +363,10 @@
 
       <div class="auth-content" id="phone-step">
         <h1 class="auth-title" id="auth-title">Войдите в R-invest</h1>
-        <p class="auth-text" id="auth-intro">Используйте ключ входа на устройстве или войдите по номеру телефона.</p>
-        <button class="auth-button passkey" id="passkey-login-button" type="button" onclick="loginWithPasskey()">🔐 Войти через биометрию</button>
+        <p class="auth-text" id="auth-intro">Войдите через Face ID, графический ключ или номер телефона.</p>
+        <button class="auth-button passkey" id="passkey-login-button" type="button" onclick="loginWithPasskey()">🔐 Войти через Face ID</button>
         <div class="auth-error" id="passkey-error" aria-live="polite"></div>
+        <button class="auth-button passkey" id="pattern-login-button" type="button" onclick="openPatternLogin()">🔒 Войти по графическому ключу</button>
         <button class="auth-button" id="open-phone-login-button" type="button" onclick="showPhoneLoginForm()">Войти по номеру телефона</button>
         <form class="auth-form" id="phone-login-form" style="display:none;" onsubmit="checkPhone(event)">
           <label class="auth-label" for="phone-number">Номер телефона</label>
@@ -363,7 +374,7 @@
           <div class="auth-error" id="phone-error" aria-live="polite"></div>
           <button class="auth-button" id="check-phone-button" type="submit" disabled>Отправить код</button>
           <p class="auth-note">Продолжая, вы соглашаетесь с условиями обработки персональных данных.</p>
-          <button class="auth-back" type="button" onclick="hidePhoneLoginForm()">Назад ко входу по биометрии</button>
+          <button class="auth-back" type="button" onclick="hidePhoneLoginForm()">Назад к способам входа</button>
         </form>
       </div>
 
@@ -715,9 +726,61 @@
         </div>
         <div class="security-contact">
           <div class="security-contact-label">Быстрый вход</div>
-          <div class="security-hint" id="security-passkey-status">Статус не проверен.</div>
-          <button class="security-action" id="security-passkey-button" type="button" style="margin-top:12px;" onclick="setupSecurityPasskey()">Настройка быстрого входа</button>
+          <div class="security-hint">Настройте вход по Face ID и графическому ключу.</div>
+          <button class="security-action" type="button" style="margin-top:12px;" onclick="openQuickAccessPage()">Настройка быстрого входа</button>
         </div>
+      </div>
+    </div>
+
+    <div class="fullscreen" id="fs-quick-access" aria-label="Настройка быстрого входа">
+      <div class="fs-topbar">
+        <div class="fs-title-wrap sublease-contracts-title"><div class="fs-title">Быстрый вход</div></div>
+        <button class="fs-back" type="button" aria-label="Назад" title="Назад" onclick="closeQuickAccessPage()">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"></path><path d="m12 19-7-7 7-7"></path></svg>
+        </button>
+      </div>
+      <div class="fs-body">
+        <div class="security-contact quick-access-method">
+          <div class="security-contact-label">Face ID</div>
+          <div class="security-hint" id="security-passkey-status">Статус не проверен.</div>
+          <button class="security-action" id="security-passkey-button" type="button" style="margin-top:12px;" onclick="setupSecurityPasskey()">Настроить Face ID</button>
+        </div>
+        <div class="security-contact quick-access-method">
+          <div class="security-contact-label">Графический ключ</div>
+          <div class="security-hint" id="security-pattern-status">Статус не проверен.</div>
+          <button class="security-action" id="security-pattern-button" type="button" style="margin-top:12px;" onclick="startPatternSetup()">Настроить графический ключ</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="fullscreen" id="fs-pattern" aria-label="Графический ключ">
+      <div class="fs-topbar">
+        <div class="fs-title-wrap sublease-contracts-title"><div class="fs-title" id="pattern-page-title">Графический ключ</div></div>
+        <button class="fs-back" type="button" aria-label="Назад" title="Назад" onclick="closePatternPage()">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"></path><path d="m12 19-7-7 7-7"></path></svg>
+        </button>
+      </div>
+      <div class="fs-body">
+        <div class="security-hint pattern-phone" id="pattern-phone-wrap" style="display:none;">
+          <label class="auth-label" for="pattern-phone">Номер телефона аккаунта</label>
+          <input class="security-input" id="pattern-phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+7 777 777 77 77">
+        </div>
+        <div class="pattern-status" id="pattern-prompt" role="status" aria-live="polite"></div>
+        <svg class="pattern-grid" id="pattern-grid" viewBox="0 0 300 300" aria-label="Сетка графического ключа">
+          <polyline id="pattern-path" points=""></polyline>
+          <circle data-pattern-node="0" cx="50" cy="50" r="16"></circle>
+          <circle data-pattern-node="1" cx="150" cy="50" r="16"></circle>
+          <circle data-pattern-node="2" cx="250" cy="50" r="16"></circle>
+          <circle data-pattern-node="3" cx="50" cy="150" r="16"></circle>
+          <circle data-pattern-node="4" cx="150" cy="150" r="16"></circle>
+          <circle data-pattern-node="5" cx="250" cy="150" r="16"></circle>
+          <circle data-pattern-node="6" cx="50" cy="250" r="16"></circle>
+          <circle data-pattern-node="7" cx="150" cy="250" r="16"></circle>
+          <circle data-pattern-node="8" cx="250" cy="250" r="16"></circle>
+        </svg>
+        <div class="pattern-status" id="pattern-error"></div>
+        <button class="security-action" id="pattern-submit" type="button" onclick="submitPattern()">Продолжить</button>
+        <button class="security-action secondary" id="pattern-clear" type="button" style="margin-top:8px;" onclick="clearPattern()">Очистить</button>
       </div>
     </div>
 
@@ -790,6 +853,11 @@ let myDataReturnTab = 'profile';
 let myDataAvatarValue = null;
 let securityReturnTab = 'profile';
 let securityPhoneChangeRequestedPhone = '';
+let patternMode = '';
+let patternPhase = '';
+let patternNodes = [];
+let patternFirstEntry = '';
+let patternDrawing = false;
 const CARS = {
   camry:{
     name:'Toyota Camry', plate:'A123BC 777', photo:'🚘', year:'2021', color:'Чёрный', mileage:'68 500 км', status:'Активен', statusClass:'active',
@@ -1090,7 +1158,7 @@ async function loginWithPasskey(){
     }
   }finally{
     button.disabled = !webAuthnAvailable();
-    button.innerHTML = '🔐 Войти через биометрию';
+    button.innerHTML = '🔐 Войти через Face ID';
   }
 }
 
@@ -1117,7 +1185,7 @@ async function registerPasskey(){
   });
   const result = await response.json();
   if(!response.ok) throw new Error(result.error || 'Не удалось сохранить ключ входа.');
-  showToast('Быстрый вход на этом устройстве настроен');
+  showToast('Face ID настроен на этом устройстве');
 }
 
 async function verifyOtp(event){
@@ -1226,15 +1294,27 @@ function openSecurityPage(){
   document.getElementById('security-phone-code-step').style.display = 'none';
   document.getElementById('security-phone-editor').classList.remove('open');
   document.getElementById('security-phone-message').textContent = '';
-  document.getElementById('security-passkey-status').textContent = 'Проверяем быстрый вход…';
-  document.getElementById('security-passkey-button').disabled = !AppState.sessionToken || !webAuthnAvailable();
   document.getElementById('fs-security').style.display = 'flex';
-  loadSecurityPasskeyStatus();
 }
 
 function closeSecurityPage(){
   document.getElementById('fs-security').style.display = 'none';
   switchTab(securityReturnTab);
+}
+
+function openQuickAccessPage(){
+  document.getElementById('security-passkey-status').textContent = 'Проверяем Face ID…';
+  document.getElementById('security-pattern-status').textContent = 'Проверяем графический ключ…';
+  document.getElementById('security-passkey-button').disabled = !AppState.sessionToken || !webAuthnAvailable();
+  document.getElementById('security-pattern-button').disabled = !AppState.sessionToken;
+  document.getElementById('fs-quick-access').style.display = 'flex';
+  loadSecurityPasskeyStatus();
+  loadSecurityPatternStatus();
+}
+
+function closeQuickAccessPage(){
+  document.getElementById('fs-quick-access').style.display = 'none';
+  document.getElementById('fs-security').style.display = 'flex';
 }
 
 function toggleSecurityPhoneEditor(){
@@ -1364,14 +1444,18 @@ async function confirmSecurityPhoneChange(){
 
 async function loadSecurityPasskeyStatus(){
   const status = document.getElementById('security-passkey-status');
+  const button = document.getElementById('security-passkey-button');
   if(!AppState.sessionToken){
     status.textContent = 'Войдите по номеру телефона, чтобы настроить быстрый вход.';
+    button.disabled = true;
     return;
   }
   if(!webAuthnAvailable()){
-    status.textContent = 'Быстрый вход доступен только в поддерживаемом браузере и по HTTPS.';
+    status.textContent = 'Face ID доступен только в поддерживаемом браузере и по HTTPS.';
+    button.disabled = true;
     return;
   }
+  button.disabled = false;
   try{
     const response = await fetch('/api/auth/passkey/status', {
       headers:{Authorization:`Bearer ${AppState.sessionToken}`}
@@ -1382,11 +1466,36 @@ async function loadSecurityPasskeyStatus(){
     }
     if(!response.ok) throw new Error(result.error || 'Не удалось проверить настройку быстрого входа.');
     status.textContent = result.hasPasskey
-      ? 'На этом устройстве настроен вход с подтверждением устройства.'
-      : 'Быстрый вход на этом устройстве ещё не настроен.';
+      ? 'Face ID настроен.'
+      : 'Face ID ещё не настроен.';
   }catch(error){
     console.error('[Security] Ошибка проверки passkey:', error);
     status.textContent = error.message || 'Не удалось проверить быстрый вход.';
+  }
+}
+
+async function loadSecurityPatternStatus(){
+  const status = document.getElementById('security-pattern-status');
+  const button = document.getElementById('security-pattern-button');
+  if(!AppState.sessionToken){
+    status.textContent = 'Войдите по номеру телефона, чтобы настроить графический ключ.';
+    button.disabled = true;
+    return;
+  }
+  button.disabled = false;
+  try{
+    const response = await fetch('/api/auth/pattern/status', {
+      headers:{Authorization:'Bearer ' + AppState.sessionToken}
+    });
+    const result = await response.json().catch(()=>({}));
+    if(!(response.headers.get('content-type') || '').includes('application/json')){
+      throw new Error(`Сервис графического ключа недоступен (HTTP ${response.status}).`);
+    }
+    if(!response.ok) throw new Error(result.error || 'Не удалось проверить графический ключ.');
+    status.textContent = result.hasPattern ? 'Графический ключ настроен.' : 'Графический ключ ещё не настроен.';
+  }catch(error){
+    console.error('[Security] Ошибка проверки графического ключа:', error);
+    status.textContent = error.message || 'Не удалось проверить графический ключ.';
   }
 }
 
@@ -1405,7 +1514,216 @@ async function setupSecurityPasskey(){
       : (error.message || 'Не удалось настроить быстрый вход.');
   }finally{
     button.disabled = !AppState.sessionToken || !webAuthnAvailable();
-    button.textContent = 'Настройка быстрого входа';
+    button.textContent = 'Настроить Face ID';
+  }
+}
+
+function openPatternPage(mode){
+  patternMode = mode;
+  patternPhase = mode === 'setup' ? 'create' : 'login';
+  patternNodes = [];
+  patternFirstEntry = '';
+  patternDrawing = false;
+  document.getElementById('pattern-page-title').textContent = mode === 'setup' ? 'Настройка ключа' : 'Вход по ключу';
+  document.getElementById('pattern-phone-wrap').style.display = mode === 'login' ? 'block' : 'none';
+  document.getElementById('pattern-phone').value = mode === 'login' ? String(AppState.telefon || '') : '';
+  document.getElementById('pattern-prompt').textContent = mode === 'setup'
+    ? 'Нарисуйте графический ключ минимум из 5 точек.'
+    : 'Введите номер телефона аккаунта и нарисуйте графический ключ.';
+  document.getElementById('pattern-error').textContent = '';
+  document.getElementById('pattern-submit').textContent = mode === 'login' ? 'Войти' : 'Продолжить';
+  document.getElementById('pattern-submit').disabled = false;
+  document.getElementById('fs-pattern').style.display = 'flex';
+  clearPattern();
+}
+
+function startPatternSetup(){
+  if(!AppState.sessionToken){
+    document.getElementById('security-pattern-status').textContent = 'Сначала войдите по номеру телефона.';
+    return;
+  }
+  openPatternPage('setup');
+}
+
+function openPatternLogin(){
+  openPatternPage('login');
+}
+
+function closePatternPage(){
+  const wasSetup = patternMode === 'setup';
+  document.getElementById('fs-pattern').style.display = 'none';
+  patternMode = '';
+  patternPhase = '';
+  patternNodes = [];
+  patternFirstEntry = '';
+  patternDrawing = false;
+  if(wasSetup) loadSecurityPatternStatus();
+}
+
+function clearPattern(){
+  patternNodes = [];
+  document.querySelectorAll('#pattern-grid circle').forEach(circle=>circle.classList.remove('selected'));
+  document.getElementById('pattern-path').setAttribute('points', '');
+  document.getElementById('pattern-error').textContent = '';
+}
+
+function patternCoordinates(index){
+  return {x:50 + (index % 3) * 100, y:50 + Math.floor(index / 3) * 100};
+}
+
+function patternNodeAtPointer(event){
+  const svg = document.getElementById('pattern-grid');
+  const rect = svg.getBoundingClientRect();
+  if(!rect.width || !rect.height) return -1;
+  const x = (event.clientX - rect.left) * 300 / rect.width;
+  const y = (event.clientY - rect.top) * 300 / rect.height;
+  let closest = -1;
+  let closestDistance = 38;
+  for(let index = 0; index < 9; index++){
+    const point = patternCoordinates(index);
+    const distance = Math.hypot(x - point.x, y - point.y);
+    if(distance < closestDistance){
+      closest = index;
+      closestDistance = distance;
+    }
+  }
+  return closest;
+}
+
+function addPatternNode(index){
+  if(index < 0 || patternNodes.includes(index)) return;
+  if(patternNodes.length){
+    const previous = patternCoordinates(patternNodes[patternNodes.length - 1]);
+    const next = patternCoordinates(index);
+    const dx = next.x - previous.x;
+    const dy = next.y - previous.y;
+    const steps = (function gcd(a,b){ return b ? gcd(b,a % b) : a; })(Math.abs(dx),Math.abs(dy)) / 100;
+    if(steps > 1){
+      const stepX = dx / steps;
+      const stepY = dy / steps;
+      for(let step = 1; step < steps; step++){
+        const x = previous.x + stepX * step;
+        const y = previous.y + stepY * step;
+        const intermediate = ((y - 50) / 100) * 3 + (x - 50) / 100;
+        if(Number.isInteger(intermediate) && !patternNodes.includes(intermediate)){
+          patternNodes.push(intermediate);
+          document.querySelector(`#pattern-grid circle[data-pattern-node="${intermediate}"]`).classList.add('selected');
+        }
+      }
+    }
+  }
+  patternNodes.push(index);
+  document.querySelector(`#pattern-grid circle[data-pattern-node="${index}"]`).classList.add('selected');
+  document.getElementById('pattern-path').setAttribute('points', patternNodes.map(node=>{
+    const point = patternCoordinates(node);
+    return `${point.x},${point.y}`;
+  }).join(' '));
+}
+
+function patternPointerDown(event){
+  if(document.getElementById('fs-pattern').style.display !== 'flex') return;
+  const index = patternNodeAtPointer(event);
+  if(index < 0) return;
+  event.preventDefault();
+  patternDrawing = true;
+  document.getElementById('pattern-grid').setPointerCapture(event.pointerId);
+  clearPattern();
+  addPatternNode(index);
+}
+
+function patternPointerMove(event){
+  if(patternDrawing) addPatternNode(patternNodeAtPointer(event));
+}
+
+function patternPointerUp(event){
+  if(!patternDrawing) return;
+  patternDrawing = false;
+  const grid = document.getElementById('pattern-grid');
+  if(grid.hasPointerCapture(event.pointerId)) grid.releasePointerCapture(event.pointerId);
+}
+
+function getPatternPhone(){
+  const digits = document.getElementById('pattern-phone').value.replace(/\D/g, '');
+  if(digits.length === 10) return `7${digits}`;
+  if(digits.length === 11 && (digits[0] === '7' || digits[0] === '8')){
+    return digits[0] === '8' ? `7${digits.slice(1)}` : digits;
+  }
+  return '';
+}
+
+async function submitPattern(){
+  const pattern = patternNodes.map(index=>String(index + 1)).join('');
+  const error = document.getElementById('pattern-error');
+  const button = document.getElementById('pattern-submit');
+  if(pattern.length < 5){
+    error.textContent = 'Ключ должен соединять минимум 5 точек.';
+    return;
+  }
+  if(patternMode === 'setup' && patternPhase === 'create'){
+    patternFirstEntry = pattern;
+    patternPhase = 'confirm';
+    document.getElementById('pattern-prompt').textContent = 'Повторите графический ключ для подтверждения.';
+    document.getElementById('pattern-error').textContent = '';
+    clearPattern();
+    return;
+  }
+  if(patternMode === 'setup'){
+    if(pattern !== patternFirstEntry){
+      patternFirstEntry = '';
+      patternPhase = 'create';
+      document.getElementById('pattern-prompt').textContent = 'Ключи не совпали. Нарисуйте графический ключ ещё раз.';
+      clearPattern();
+      return;
+    }
+    button.disabled = true;
+    try{
+      const response = await fetch('/api/auth/pattern/register', {
+        method:'POST',
+        headers:{'Content-Type':'application/json', Authorization:'Bearer ' + AppState.sessionToken},
+        body:JSON.stringify({pattern})
+      });
+      const result = await response.json().catch(()=>({}));
+      if(!(response.headers.get('content-type') || '').includes('application/json')){
+        throw new Error(`Сервис графического ключа недоступен (HTTP ${response.status}).`);
+      }
+      if(!response.ok) throw new Error(result.error || 'Не удалось сохранить графический ключ.');
+      document.getElementById('security-pattern-status').textContent = 'Графический ключ настроен.';
+      closePatternPage();
+    }catch(caughtError){
+      console.error('[Security] Ошибка настройки графического ключа:', caughtError);
+      clearPattern();
+      error.textContent = caughtError.message || 'Не удалось сохранить графический ключ.';
+    }finally{
+      button.disabled = false;
+    }
+    return;
+  }
+
+  const phone = getPatternPhone();
+  if(!phone){
+    error.textContent = 'Введите полный номер телефона аккаунта.';
+    return;
+  }
+  button.disabled = true;
+  try{
+    const response = await fetch('/api/auth/pattern/login', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({phone, pattern})
+    });
+    const result = await response.json().catch(()=>({}));
+    if(!(response.headers.get('content-type') || '').includes('application/json')){
+      throw new Error(`Сервис быстрого входа недоступен (HTTP ${response.status}).`);
+    }
+    if(!response.ok) throw new Error(result.error || 'Не удалось войти по графическому ключу.');
+    closePatternPage();
+    await completeAuthentication(result);
+  }catch(caughtError){
+    console.error('[Auth] Ошибка входа по графическому ключу:', caughtError);
+    clearPattern();
+    error.textContent = caughtError.message || 'Не удалось войти по графическому ключу.';
+  }finally{
+    button.disabled = false;
   }
 }
 
@@ -1585,7 +1903,7 @@ function restoreProfile(){
     });
     saveProfileSnapshot();
     document.getElementById('auth-title').textContent = 'С возвращением!';
-    document.getElementById('auth-intro').textContent = 'Войдите по ключу на устройстве или подтвердите номер телефона.';
+    document.getElementById('auth-intro').textContent = 'Войдите через Face ID, графический ключ или номер телефона.';
     updateGreeting();
     renderProfile();
   }catch(error){
@@ -1597,6 +1915,7 @@ function showPhoneLoginForm(){
   document.getElementById('phone-login-form').style.display = 'block';
   document.getElementById('open-phone-login-button').style.display = 'none';
   document.getElementById('passkey-login-button').style.display = 'none';
+  document.getElementById('pattern-login-button').style.display = 'none';
   document.getElementById('passkey-error').textContent = '';
   document.getElementById('phone-number').focus();
 }
@@ -1605,6 +1924,7 @@ function hidePhoneLoginForm(){
   document.getElementById('phone-login-form').style.display = 'none';
   document.getElementById('open-phone-login-button').style.display = 'block';
   document.getElementById('passkey-login-button').style.display = 'block';
+  document.getElementById('pattern-login-button').style.display = 'block';
   document.getElementById('phone-error').textContent = '';
 }
 
@@ -1643,8 +1963,9 @@ function showAuthScreen(){
   document.getElementById('phone-login-form').style.display = 'none';
   document.getElementById('open-phone-login-button').style.display = 'block';
   document.getElementById('passkey-login-button').style.display = 'block';
+  document.getElementById('pattern-login-button').style.display = 'block';
   document.getElementById('auth-title').textContent = 'Войдите в R-invest';
-  document.getElementById('auth-intro').textContent = 'Используйте ключ входа на устройстве или войдите по номеру телефона.';
+  document.getElementById('auth-intro').textContent = 'Войдите через Face ID, графический ключ или номер телефона.';
   document.getElementById('passkey-error').textContent = '';
   document.getElementById('passkey-login-button').disabled = !webAuthnAvailable();
   document.getElementById('phone-number').value = '';
@@ -2225,6 +2546,11 @@ function renderCdContent(t){
 }
 
 restoreProfile();
+const patternGrid = document.getElementById('pattern-grid');
+patternGrid.addEventListener('pointerdown', patternPointerDown);
+patternGrid.addEventListener('pointermove', patternPointerMove);
+patternGrid.addEventListener('pointerup', patternPointerUp);
+patternGrid.addEventListener('pointercancel', patternPointerUp);
 renderFinance('all');
 </script>
 </body>
