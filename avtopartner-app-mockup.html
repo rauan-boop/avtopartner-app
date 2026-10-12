@@ -170,8 +170,6 @@
   .bk-dates{ display:flex; gap:16px; margin-bottom:10px;}
   .bk-date{ font-size:11.5px; color:var(--text-lo);}
   .bk-bottom{ display:flex; justify-content:space-between; align-items:center; padding-top:10px; border-top:1px solid var(--line);}
-  .bk-bottom.contract-bk-bottom{ justify-content:space-between;}
-  .badge.contract-status{ margin-left:0;}
   .bk-client{ font-size:12px; color:var(--text-hi); font-weight:600;}
   .bk-phone{ font-size:11px; color:var(--text-lo); margin-top:2px;}
   .sublease-car-card{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:14px; margin-bottom:12px; box-shadow:0 5px 14px rgba(31,41,55,.05);}
@@ -2779,15 +2777,7 @@ function createContractCard(contract){
   endDate.textContent = `📅 ${formatContractDate(contract.date_okonchaniya_arendy)}`;
   dates.append(startDate, endDate);
 
-  const bottom = document.createElement('div');
-  bottom.className = 'bk-bottom contract-bk-bottom';
-  if(typeof contract.status_dogovora === 'boolean'){
-    const status = document.createElement('span');
-    status.className = `badge contract-status ${contract.status_dogovora ? 'active' : 'done'}`;
-    status.textContent = contract.status_dogovora ? 'В аренде' : 'Завершен';
-    bottom.appendChild(status);
-  }
-  card.append(top, dates, bottom);
+  card.append(top, dates);
   return card;
 }
 
