@@ -174,9 +174,6 @@
   .badge.contract-status{ margin-left:0;}
   .bk-client{ font-size:12px; color:var(--text-hi); font-weight:600;}
   .bk-phone{ font-size:11px; color:var(--text-lo); margin-top:2px;}
-  .bk-sum{ text-align:right;}
-  .bk-sum .l{ font-size:10.5px; color:var(--text-lo);}
-  .bk-sum .n{ font-size:14.5px; font-weight:800; color:var(--text-hi);}
   .sublease-car-card{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:14px; margin-bottom:12px; box-shadow:0 5px 14px rgba(31,41,55,.05);}
   .sublease-car-top{ display:flex; align-items:center; gap:12px; margin-bottom:12px;}
   .sublease-car-avatar{ width:54px; height:54px; border-radius:14px; background:var(--blue-soft); display:flex; align-items:center; justify-content:center; flex-shrink:0; overflow:hidden; font-size:24px;}
@@ -2753,14 +2750,6 @@ function appendContractWithMonth(contract, list){
   list.appendChild(createContractCard(contract));
 }
 
-function contractAmount(contract){
-  if(contract.vyezd_cena == null || contract.stoimost_arendy_bez_depozita == null) return null;
-  const exitPrice = Number(contract.vyezd_cena);
-  const rentalPrice = Number(contract.stoimost_arendy_bez_depozita);
-  if(!Number.isFinite(exitPrice) || !Number.isFinite(rentalPrice)) return null;
-  return exitPrice + rentalPrice;
-}
-
 function createContractCard(contract){
   const card = document.createElement('div');
   card.className = 'booking-card';
@@ -2795,20 +2784,9 @@ function createContractCard(contract){
   if(typeof contract.status_dogovora === 'boolean'){
     const status = document.createElement('span');
     status.className = `badge contract-status ${contract.status_dogovora ? 'active' : 'done'}`;
-    status.textContent = contract.status_dogovora ? 'Активен' : 'Завершен';
+    status.textContent = contract.status_dogovora ? 'В аренде' : 'Завершен';
     bottom.appendChild(status);
   }
-  const total = document.createElement('div');
-  total.className = 'bk-sum';
-  const totalLabel = document.createElement('div');
-  totalLabel.className = 'l';
-  totalLabel.textContent = 'Сумма';
-  const totalValue = document.createElement('div');
-  totalValue.className = 'n';
-  const amount = contractAmount(contract);
-  totalValue.textContent = amount === null ? '—' : fmt(amount);
-  total.append(totalLabel, totalValue);
-  bottom.appendChild(total);
   card.append(top, dates, bottom);
   return card;
 }
