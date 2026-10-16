@@ -915,13 +915,20 @@ app.get('/api/partner/rent-payments', async (req, res) => {
         kompaniya_id: filterValue(profile.compani_id),
         cityID: filterValue(profile.city_id),
         arfive: 'eq.false',
-        select: 'id',
+        select: 'id,procent_ot_avto',
         order: 'id.asc'
       },
       headers: { ...serviceHeaders(), Prefer: 'count=exact' },
       timeout: 10000
     });
     const carIds = (carsResponse.data || []).map(car => car.id).filter(id => id != null);
+
+    const carPercentages = new Map();
+    (carsResponse.data || []).forEach(car => {
+      if (car.id != null && car.procent_ot_avto != null) {
+        carPercentages.set(String(car.id), Number(car.procent_ot_avto));
+      }
+    });
     if (!carIds.length) return res.json({ transactions: [], count: 0 });
     if (requestedCarId !== undefined && !carIds.some(id => String(id) === requestedCarId)) {
       return res.status(403).json({ error: 'Выбранный автомобиль не принадлежит текущему партнёру' });
@@ -947,8 +954,22 @@ app.get('/api/partner/rent-payments', async (req, res) => {
     const total = Number(paymentsResponse.headers['content-range']?.split('/')[1]);
     if (!Number.isFinite(total)) throw new Error('Supabase did not return the exact finance transaction count');
 
+    const transactions = (paymentsResponse.data || []).map(tx => {
+      const carId = String(tx.data_car?.id || tx.data_car);
+      const percentage = carPercentages.get(carId);
+      if (percentage != null && percentage > 0) {
+        if (tx.cena_za_arendy != null) {
+          tx.cena_za_arendy = tx.cena_za_arendy * percentage / 100;
+        }
+        if (tx.summa_rashoda != null) {
+          tx.summa_rashoda = tx.summa_rashoda * percentage / 100;
+        }
+      }
+      return tx;
+    });
+
     return res.json({
-      transactions: paymentsResponse.data || [],
+      transactions: transactions,
       count: total
     });
   } catch (error) {
