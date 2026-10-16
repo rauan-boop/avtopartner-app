@@ -925,8 +925,11 @@ app.get('/api/partner/rent-payments', async (req, res) => {
 
     const carPercentages = new Map();
     (carsResponse.data || []).forEach(car => {
-      if (car.id != null && car.procent_ot_avto != null) {
-        carPercentages.set(String(car.id), Number(car.procent_ot_avto));
+      if (car.id != null) {
+        const percentage = car.procent_ot_avto == null ? NaN : Number(car.procent_ot_avto);
+        carPercentages.set(String(car.id), Number.isFinite(percentage) && percentage >= 0 && percentage <= 100
+          ? percentage
+          : null);
       }
     });
     if (!carIds.length) return res.json({ transactions: [], count: 0 });
@@ -940,7 +943,7 @@ app.get('/api/partner/rent-payments', async (req, res) => {
         id_car: `in.(${filteredCarIds.join(',')})`,
         and: `(created_at.gte.${from},created_at.lt.${to})`,
         or: `(type.eq.true,and(type.eq.false,nezavisimyi_rashod.eq.false,type_rashoda.in.(${financeExpenseTypes.map(type => `"${type}"`).join(',')})))`,
-        select: 'data_car,created_at,type,cena_za_arendy,summa_rashoda,type_rashoda',
+        select: 'id_car,data_car,created_at,type,cena_za_arendy,summa_rashoda,type_rashoda',
         order: 'created_at.desc'
       },
       headers: {
@@ -955,15 +958,16 @@ app.get('/api/partner/rent-payments', async (req, res) => {
     if (!Number.isFinite(total)) throw new Error('Supabase did not return the exact finance transaction count');
 
     const transactions = (paymentsResponse.data || []).map(tx => {
-      const carId = String(tx.data_car?.id || tx.data_car);
+      const carId = tx.id_car == null ? null : String(tx.id_car);
       const percentage = carPercentages.get(carId);
-      if (percentage != null && percentage > 0) {
-        if (tx.cena_za_arendy != null) {
-          tx.cena_za_arendy = tx.cena_za_arendy * percentage / 100;
-        }
-        if (tx.summa_rashoda != null) {
-          tx.summa_rashoda = tx.summa_rashoda * percentage / 100;
-        }
+      if (percentage == null) {
+        throw new Error(`Missing or invalid partner percentage for car ${carId ?? 'without id'}`);
+      }
+      if (tx.cena_za_arendy != null) {
+        tx.cena_za_arendy = Number(tx.cena_za_arendy) * percentage / 100;
+      }
+      if (tx.summa_rashoda != null) {
+        tx.summa_rashoda = Number(tx.summa_rashoda) * percentage / 100;
       }
       return tx;
     });
