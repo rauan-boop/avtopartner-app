@@ -1206,12 +1206,15 @@ function getAnalyticsPeriodRange(){
   const monthCount = analyticsSelectedPeriod === 'year' ? 12 : analyticsSelectedPeriod === 'quarter' ? 3 : 1;
   const rangeStart = new Date(analyticsSelectedMonth.getFullYear(),startMonth,1);
   const rangeEnd = new Date(analyticsSelectedMonth.getFullYear(),startMonth+monthCount,1);
+  const today = new Date();
+  const endOfToday = new Date(today.getFullYear(),today.getMonth(),today.getDate()+1);
+  const utilizationRangeEnd = rangeEnd < endOfToday ? rangeEnd : endOfToday;
   const toCalendarDate = date => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
   return {
     from:rangeStart.toISOString(),
     to:rangeEnd.toISOString(),
     dateFrom:toCalendarDate(rangeStart),
-    dateTo:toCalendarDate(rangeEnd),
+    dateTo:toCalendarDate(utilizationRangeEnd),
     period:analyticsSelectedPeriod,
     year:analyticsSelectedMonth.getFullYear(),
     month:analyticsSelectedMonth.getMonth()+1
@@ -1264,8 +1267,8 @@ function renderAnalyticsUtilization(data){
   const rentedDays = Number(data.rentedDays) || 0;
   const garageDays = Number(data.garageDays) || 0;
   const totalDays = Number(data.totalDays) || 0;
-  const utilizationPercent = totalDays ? Math.round(rentedDays / totalDays * 100) : 0;
-  const garagePercent = totalDays ? Math.round(garageDays / totalDays * 100) : 0;
+  const utilizationPercent = totalDays ? Math.floor(rentedDays / totalDays * 100) : 0;
+  const garagePercent = totalDays ? 100 - utilizationPercent : 0;
   const circumference = 238.76;
   const rentedArc = circumference * utilizationPercent / 100;
   const garageArc = circumference - rentedArc;

@@ -920,15 +920,14 @@ app.get('/api/partner/car-utilization', async (req, res) => {
       timeout: 10000
     });
     const cars = carsResponse.data || [];
+    const periodDays = (Date.parse(`${to}T00:00:00.000Z`) - Date.parse(`${from}T00:00:00.000Z`)) / 86400000;
     const utilizationByCar = new Map(cars.map(car => [String(car.id), {
       id: car.id,
       marka: car.marka,
       model: car.model,
       gos_nomer: car.gos_nomer,
-      rentedDays: 0,
-      garageDays: 0,
-      totalDays: 0
     }]));
+    const rentedDatesByCar = new Map(cars.map(car => [String(car.id), new Set()]));
 
     if (cars.length) {
       const carIds = cars.map(car => car.id);
@@ -955,21 +954,25 @@ app.get('/api/partner/car-utilization', async (req, res) => {
         if (!Number.isFinite(rangeTotal)) throw new Error('Supabase did not return the exact car utilization count');
         total = rangeTotal;
         (statesResponse.data || []).forEach(state => {
-          const car = utilizationByCar.get(String(state.cars_id));
-          if (!car) return;
-          if (state.status === true || state.status === 'true') car.rentedDays++;
-          else if (state.status === false || state.status === 'false') car.garageDays++;
-          else return;
-          car.totalDays++;
+          const rentedDates = rentedDatesByCar.get(String(state.cars_id));
+          if (!rentedDates || !(state.status === true || state.status === 'true')) return;
+          const date = String(state.date || '').slice(0, 10);
+          if (isValidCalendarDate(date)) rentedDates.add(date);
         });
         offset += pageSize;
       } while (offset < total);
     }
 
-    const carUtilization = [...utilizationByCar.values()].map(car => ({
-      ...car,
-      utilizationPercent: car.totalDays ? Math.round(car.rentedDays / car.totalDays * 100) : 0
-    }));
+    const carUtilization = [...utilizationByCar.values()].map(car => {
+      const rentedDays = Math.min(rentedDatesByCar.get(String(car.id)).size, periodDays);
+      return {
+        ...car,
+        rentedDays,
+        garageDays: periodDays - rentedDays,
+        totalDays: periodDays,
+        utilizationPercent: periodDays ? Math.floor(rentedDays / periodDays * 100) : 0
+      };
+    });
     const totals = carUtilization.reduce((summary, car) => ({
       rentedDays: summary.rentedDays + car.rentedDays,
       garageDays: summary.garageDays + car.garageDays,
@@ -978,7 +981,7 @@ app.get('/api/partner/car-utilization', async (req, res) => {
 
     return res.json({
       ...totals,
-      utilizationPercent: totals.totalDays ? Math.round(totals.rentedDays / totals.totalDays * 100) : 0,
+      utilizationPercent: totals.totalDays ? Math.floor(totals.rentedDays / totals.totalDays * 100) : 0,
       cars: carUtilization
     });
   } catch (error) {
