@@ -119,6 +119,9 @@
   .analytics-component-label{ color:var(--text-lo); font-size:11px; font-weight:600;}
   .analytics-component-value{ color:var(--text-hi); font-size:14px; line-height:1.3; font-weight:800; margin-top:5px; overflow-wrap:anywhere;}
   .analytics-operator{ color:var(--text-lo); font-size:18px; font-weight:700; text-align:center;}
+  .analytics-history-period{ margin:4px 0 14px; color:var(--text-lo); font-size:12px; font-weight:600; text-align:center;}
+  .analytics-history-transactions .rental-tx-car{ display:none;}
+  .analytics-history-empty{ padding:22px 12px; color:var(--text-lo); font-size:13px; text-align:center;}
 
   .sum-card{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:15px 16px; display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; cursor:pointer; box-shadow:0 5px 14px rgba(31,41,55,.05);}
   .sum-label{ font-size:12px; font-weight:600;}
@@ -700,6 +703,23 @@
       </div>
     </div>
 
+    <div class="fullscreen" id="fs-analytics-car">
+      <div class="fs-topbar">
+        <button class="fs-back" type="button" aria-label="Назад к аналитике" onclick="closeAnalyticsCarHistory()">←</button>
+        <div class="fs-title-wrap"><div class="fs-title" id="analytics-car-title"></div><div class="fs-sub" id="analytics-car-plate"></div></div>
+      </div>
+      <div class="fs-body">
+        <div class="analytics-history-period" id="analytics-car-period"></div>
+        <div class="tabbar" id="analytics-car-history-tabs">
+          <button class="tabbtn active" type="button" data-filter="all" onclick="setAnalyticsCarHistoryFilter('all',this)">Все</button>
+          <button class="tabbtn" type="button" data-filter="income" onclick="setAnalyticsCarHistoryFilter('income',this)">Доходы</button>
+          <button class="tabbtn" type="button" data-filter="expense" onclick="setAnalyticsCarHistoryFilter('expense',this)">Расходы</button>
+        </div>
+        <div class="analytics-history-transactions" id="analytics-car-history-list"></div>
+        <div class="finance-tx-status" id="analytics-car-history-status" role="status" aria-live="polite"></div>
+      </div>
+    </div>
+
     <div class="fullscreen" id="fs-app-state" aria-label="Переменные приложения">
       <div class="fs-topbar">
         <div class="fs-title-wrap"><div class="fs-title">Переменные приложения</div></div>
@@ -960,6 +980,16 @@ let analyticsTopCarsRequestId = 0;
 let analyticsSummaryRequestId = 0;
 let analyticsSelectedMonth = new Date(new Date().getFullYear(),new Date().getMonth(),1);
 let analyticsSelectedPeriod = 'month';
+let analyticsHistoryCar = null;
+let analyticsHistoryPeriod = null;
+let analyticsHistoryTransactions = [];
+let analyticsHistoryOffset = 0;
+let analyticsHistoryCount = 0;
+let analyticsHistoryFilter = 'all';
+let analyticsHistoryLoading = false;
+let analyticsHistoryHasMore = false;
+let analyticsHistoryRequestId = 0;
+let analyticsHistoryError = '';
 const CARS = {
   camry:{
     name:'Toyota Camry', plate:'A123BC 777', photo:'🚘', year:'2021', color:'Чёрный', mileage:'68 500 км', status:'Активен', statusClass:'active',
@@ -1312,7 +1342,17 @@ async function loadAnalyticsTopCars(){
     carsWithProfit.sort((first,second)=>second.profit - first.profit);
     carsWithProfit.forEach((car,index)=>{
       const row = document.createElement('div');
-      row.className = 'car-row home-car-row';
+      row.className = 'car-row';
+      row.setAttribute('role','button');
+      row.tabIndex = 0;
+      row.setAttribute('aria-label',`История автомобиля ${[car.marka,car.model,car.gos_nomer].filter(Boolean).join(' ')}`);
+      row.addEventListener('click',()=>openAnalyticsCarHistory(car));
+      row.addEventListener('keydown',event=>{
+        if(event.key === 'Enter' || event.key === ' '){
+          event.preventDefault();
+          openAnalyticsCarHistory(car);
+        }
+      });
       const thumb = document.createElement('div');
       thumb.className = 'car-thumb';
       thumb.textContent = '🚘';
@@ -1342,6 +1382,143 @@ async function loadAnalyticsTopCars(){
     if(requestId !== analyticsTopCarsRequestId || AppState.sessionToken !== sessionToken) return;
     console.error('[Analytics] Ошибка загрузки топа автомобилей:',error);
     status.textContent = error.message || 'Не удалось загрузить прибыль по автомобилям.';
+  }
+}
+
+function openAnalyticsCarHistory(car){
+  analyticsHistoryCar = car;
+  analyticsHistoryPeriod = getAnalyticsPeriodRange();
+  analyticsHistoryFilter = 'all';
+  analyticsHistoryTransactions = [];
+  analyticsHistoryOffset = 0;
+  analyticsHistoryCount = 0;
+  analyticsHistoryHasMore = false;
+  analyticsHistoryLoading = false;
+  const description = [car.marka,car.model].filter(Boolean).join(' ') || 'Автомобиль';
+  document.getElementById('analytics-car-title').textContent = description;
+  document.getElementById('analytics-car-plate').textContent = car.gos_nomer || 'Госномер не указан';
+  document.getElementById('analytics-car-period').textContent = `История за ${document.getElementById('analytics-period-label').textContent.replace(/^📅\s*/, '')}`;
+  document.querySelectorAll('#analytics-car-history-tabs .tabbtn').forEach(button=>button.classList.toggle('active',button.dataset.filter === 'all'));
+  document.getElementById('fs-analytics-car').style.display = 'flex';
+  loadAnalyticsCarHistory(true);
+}
+
+function closeAnalyticsCarHistory(){
+  analyticsHistoryRequestId++;
+  analyticsHistoryCar = null;
+  analyticsHistoryLoading = false;
+  document.getElementById('fs-analytics-car').style.display = 'none';
+}
+
+function setAnalyticsCarHistoryFilter(filter,button){
+  analyticsHistoryFilter = filter;
+  document.querySelectorAll('#analytics-car-history-tabs .tabbtn').forEach(tab=>tab.classList.toggle('active',tab===button));
+  renderAnalyticsCarHistory();
+}
+
+function renderAnalyticsCarHistory(){
+  const list = document.getElementById('analytics-car-history-list');
+  const status = document.getElementById('analytics-car-history-status');
+  list.replaceChildren();
+  const transactions = analyticsHistoryTransactions.filter(transaction=>
+    analyticsHistoryFilter === 'all' ||
+    (analyticsHistoryFilter === 'income' && transaction.type === true) ||
+    (analyticsHistoryFilter === 'expense' && transaction.type === false)
+  );
+  transactions.forEach(transaction=>appendFinanceTransaction(transaction,list));
+
+  if(analyticsHistoryLoading){
+    status.textContent = 'Загружаем операции…';
+    return;
+  }
+  if(analyticsHistoryError){
+    status.replaceChildren(document.createTextNode(analyticsHistoryError));
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'security-link-button';
+    button.textContent = 'Повторить';
+    button.addEventListener('click',()=>loadAnalyticsCarHistory(false));
+    status.appendChild(button);
+    return;
+  }
+  if(analyticsHistoryCount === 0){
+    status.textContent = 'Операций за выбранный период нет.';
+    return;
+  }
+  if(!transactions.length && !analyticsHistoryHasMore){
+    status.textContent = analyticsHistoryFilter === 'income' ? 'Доходов за период нет.' : 'Расходов за период нет.';
+    return;
+  }
+  status.replaceChildren(document.createTextNode(`Показано ${analyticsHistoryOffset} из ${analyticsHistoryCount}. `));
+  if(analyticsHistoryHasMore){
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'security-link-button';
+    button.textContent = 'Показать ещё';
+    button.addEventListener('click',()=>loadAnalyticsCarHistory(false));
+    status.appendChild(button);
+  }else{
+    status.appendChild(document.createTextNode('Вся история загружена.'));
+  }
+}
+
+async function loadAnalyticsCarHistory(reset = false){
+  if(reset){
+    analyticsHistoryRequestId++;
+    analyticsHistoryOffset = 0;
+    analyticsHistoryCount = 0;
+    analyticsHistoryHasMore = true;
+    analyticsHistoryLoading = false;
+    analyticsHistoryTransactions = [];
+    analyticsHistoryError = '';
+  }
+  if(!analyticsHistoryCar) return;
+  if(!AppState.sessionToken){
+    document.getElementById('analytics-car-history-status').textContent = 'Войдите, чтобы увидеть историю операций.';
+    return;
+  }
+  if(analyticsHistoryLoading || !analyticsHistoryHasMore) return;
+
+  const requestId = analyticsHistoryRequestId;
+  const sessionToken = AppState.sessionToken;
+  analyticsHistoryError = '';
+  analyticsHistoryLoading = true;
+  renderAnalyticsCarHistory();
+  try{
+    const params = new URLSearchParams({
+      offset:String(analyticsHistoryOffset),
+      from:analyticsHistoryPeriod.from,
+      to:analyticsHistoryPeriod.to,
+      period:analyticsHistoryPeriod.period,
+      year:String(analyticsHistoryPeriod.year),
+      month:String(analyticsHistoryPeriod.month),
+      car_id:String(analyticsHistoryCar.id)
+    });
+    const response = await fetch(`/api/partner/rent-payments?${params}`,{
+      headers:{Authorization:'Bearer ' + sessionToken}
+    });
+    const result = await response.json().catch(()=>({}));
+    if(requestId !== analyticsHistoryRequestId || AppState.sessionToken !== sessionToken) return;
+    if(!(response.headers.get('content-type') || '').includes('application/json')){
+      throw new Error(`Сервис операций вернул не JSON (HTTP ${response.status}).`);
+    }
+    if(!response.ok) throw new Error(result.error || 'Не удалось загрузить историю автомобиля.');
+    if(!Array.isArray(result.transactions) || !Number.isSafeInteger(result.count) || result.count < 0){
+      throw new Error('Сервис вернул некорректную историю автомобиля.');
+    }
+    analyticsHistoryTransactions.push(...result.transactions);
+    analyticsHistoryOffset += result.transactions.length;
+    analyticsHistoryCount = result.count;
+    analyticsHistoryHasMore = analyticsHistoryOffset < analyticsHistoryCount && result.transactions.length > 0;
+  }catch(error){
+    if(requestId !== analyticsHistoryRequestId || AppState.sessionToken !== sessionToken) return;
+    console.error('[Analytics] Ошибка загрузки истории автомобиля:',error);
+    analyticsHistoryError = error.message || 'Не удалось загрузить историю автомобиля.';
+  }finally{
+    if(requestId === analyticsHistoryRequestId){
+      analyticsHistoryLoading = false;
+      renderAnalyticsCarHistory();
+    }
   }
 }
 
@@ -1560,7 +1737,7 @@ function formatFinanceTransactionDate(value){
   }).format(date);
 }
 
-function appendFinanceTransaction(transaction){
+function appendFinanceTransaction(transaction,targetList = document.getElementById('tx-list')){
   const row = document.createElement('div');
   row.className = 'tx-row finance-tx-row';
   const isExpense = transaction.type === false;
@@ -1607,7 +1784,7 @@ function appendFinanceTransaction(transaction){
     ? `${isExpense ? '−' : '+'}${fmt(Math.abs(numericAmount))}`
     : String(rawAmount ?? '—');
   row.append(icon,body,amount);
-  document.getElementById('tx-list').appendChild(row);
+  targetList.appendChild(row);
 }
 
 function setFinanceTransactionStatus(text, retry = false){
