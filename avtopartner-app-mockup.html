@@ -122,6 +122,17 @@
   .analytics-history-period{ margin:4px 0 14px; color:var(--text-lo); font-size:12px; font-weight:600; text-align:center;}
   .analytics-history-transactions .rental-tx-car{ display:none;}
   .analytics-history-empty{ padding:22px 12px; color:var(--text-lo); font-size:13px; text-align:center;}
+  .expense-report-facts{ display:grid; grid-template-columns:1fr auto; align-items:start; gap:12px; margin-bottom:14px; padding-bottom:14px; border-bottom:1px solid var(--line);}
+  .expense-report-fact-label{ color:var(--text-lo); font-size:11px; font-weight:600;}
+  .expense-report-fact-value{ margin-top:4px; color:var(--text-hi); font-size:13px; font-weight:700; overflow-wrap:anywhere;}
+  .expense-report-amount{ text-align:right; white-space:nowrap;}
+  .expense-report-description{ margin-bottom:18px; color:var(--text-hi); font-size:13px; line-height:1.5; overflow-wrap:anywhere;}
+  .expense-report-section-title{ margin:16px 0 10px; color:var(--text-hi); font-size:14px; font-weight:700;}
+  .expense-report-media{ display:grid; grid-template-columns:1fr; gap:10px;}
+  .expense-report-media img,.expense-report-media video{ display:block; width:100%; max-height:420px; border-radius:12px; background:#111827; object-fit:contain;}
+  .expense-report-media-empty{ padding:18px 12px; color:var(--text-lo); font-size:12px; text-align:center; background:var(--card); border:1px solid var(--line); border-radius:12px;}
+  .analytics-history-transactions .expense-report-row{ cursor:pointer;}
+  .analytics-history-transactions .expense-report-row:focus-visible{ outline:2px solid var(--blue2); outline-offset:2px;}
 
   .sum-card{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:15px 16px; display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; cursor:pointer; box-shadow:0 5px 14px rgba(31,41,55,.05);}
   .sum-label{ font-size:12px; font-weight:600;}
@@ -724,6 +735,25 @@
       </div>
     </div>
 
+    <div class="fullscreen" id="fs-expense-report">
+      <div class="fs-topbar">
+        <div class="fs-title-wrap"><div class="fs-title" id="expense-report-car-title"></div><div class="fs-sub" id="expense-report-car-plate"></div></div>
+        <button class="fs-back" type="button" aria-label="Назад к истории автомобиля" onclick="closeAnalyticsExpenseReport()">←</button>
+      </div>
+      <div class="fs-body">
+        <div class="expense-report-facts">
+          <div><div class="expense-report-fact-label">Дата расхода</div><div class="expense-report-fact-value" id="expense-report-date"></div></div>
+          <div class="expense-report-amount"><div class="expense-report-fact-label">Сумма с учётом процента</div><div class="expense-report-fact-value" id="expense-report-amount"></div></div>
+        </div>
+        <div class="expense-report-description" id="expense-report-description"></div>
+        <div class="expense-report-section-title">Фотоотчёт</div>
+        <div class="expense-report-media" id="expense-report-photos"></div>
+        <div class="expense-report-section-title">Видеоотчёт</div>
+        <div class="expense-report-media" id="expense-report-videos"></div>
+        <div class="finance-tx-status" id="expense-report-status" role="status" aria-live="polite"></div>
+      </div>
+    </div>
+
     <div class="fullscreen" id="fs-app-state" aria-label="Переменные приложения">
       <div class="fs-topbar">
         <div class="fs-title-wrap"><div class="fs-title">Переменные приложения</div></div>
@@ -994,6 +1024,7 @@ let analyticsHistoryLoading = false;
 let analyticsHistoryHasMore = false;
 let analyticsHistoryRequestId = 0;
 let analyticsHistoryError = '';
+let expenseReportRequestId = 0;
 const CARS = {
   camry:{
     name:'Toyota Camry', plate:'A123BC 777', photo:'🚘', year:'2021', color:'Чёрный', mileage:'68 500 км', status:'Активен', statusClass:'active',
@@ -1429,7 +1460,12 @@ function renderAnalyticsCarHistory(){
     (analyticsHistoryFilter === 'income' && transaction.type === true) ||
     (analyticsHistoryFilter === 'expense' && transaction.type === false)
   );
-  transactions.forEach(transaction=>appendFinanceTransaction(transaction,list,false));
+  transactions.forEach(transaction=>appendFinanceTransaction(
+    transaction,
+    list,
+    false,
+    transaction.type === false ? ()=>openAnalyticsExpenseReport(transaction) : null
+  ));
 
   if(analyticsHistoryLoading){
     status.textContent = 'Загружаем операции…';
@@ -1524,6 +1560,123 @@ async function loadAnalyticsCarHistory(reset = false){
       renderAnalyticsCarHistory();
     }
   }
+}
+
+function getExpenseDateKey(value){
+  if(!value) return '';
+  const date = new Date(value);
+  if(Number.isFinite(date.getTime())) return `${date.getFullYear()}-${date.getMonth()+1}-${date.getDate()}`;
+  const match = String(value).match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})/);
+  return match ? `${Number(match[3])}-${Number(match[2])}-${Number(match[1])}` : '';
+}
+
+function findExpenseReport(reports,transaction){
+  const transactionDate = getExpenseDateKey(transaction.created_at);
+  const sameDate = reports.filter(report=>transactionDate && getExpenseDateKey(report.date) === transactionDate);
+  const amount = Number(transaction.summa_rashoda);
+  const description = String(transaction.type_rashoda || '').trim().toLocaleLowerCase('ru-RU');
+  return sameDate.find(report=>Number.isFinite(amount) && Number.isFinite(report.amount) && Math.abs(report.amount-amount)<0.01)
+    || sameDate.find(report=>description && String(report.description).toLocaleLowerCase('ru-RU').includes(description))
+    || sameDate[0]
+    || (reports.length === 1 ? reports[0] : null);
+}
+
+function parseExpenseReportMedia(value){
+  if(value == null || value === '') return [];
+  if(Array.isArray(value)) return value.flatMap(parseExpenseReportMedia);
+  if(typeof value === 'object'){
+    const source = value.url || value.src || value.path || value.href || value.file;
+    if(source) return [String(source)];
+    return parseExpenseReportMedia(value.files || value.items || value.data);
+  }
+  const text = String(value).trim();
+  if(!text) return [];
+  if(text.startsWith('[') || text.startsWith('{')){
+    try{return parseExpenseReportMedia(JSON.parse(text));}catch{}
+  }
+  return text.split(/\r?\n/).map(item=>item.trim()).filter(Boolean);
+}
+
+function renderExpenseReportMedia(target,value,type){
+  target.replaceChildren();
+  const items = parseExpenseReportMedia(value);
+  if(!items.length){
+    const empty = document.createElement('div');
+    empty.className = 'expense-report-media-empty';
+    empty.textContent = type === 'photo' ? 'Фотоотчёт не приложен.' : 'Видеоотчёт не приложен.';
+    target.appendChild(empty);
+    return;
+  }
+  items.forEach(source=>{
+    const media = document.createElement(type === 'video' ? 'video' : 'img');
+    media.src = source;
+    if(type === 'video'){
+      media.controls = true;
+      media.playsInline = true;
+      media.preload = 'metadata';
+    }else{
+      media.alt = 'Фотоотчёт о расходе';
+      media.loading = 'lazy';
+    }
+    target.appendChild(media);
+  });
+}
+
+function openAnalyticsExpenseReport(transaction){
+  if(!analyticsHistoryCar) return;
+  const requestId = ++expenseReportRequestId;
+  const car = analyticsHistoryCar;
+  const carName = [car.marka,car.model].filter(Boolean).join(' ') || 'Автомобиль';
+  const sessionToken = AppState.sessionToken;
+  document.getElementById('expense-report-car-title').textContent = carName;
+  document.getElementById('expense-report-car-plate').textContent = car.gos_nomer || 'Госномер не указан';
+  document.getElementById('expense-report-date').textContent = formatFinanceTransactionDate(transaction.created_at,false);
+  document.getElementById('expense-report-description').textContent = transaction.type_rashoda || 'Расход';
+  const amount = Number(transaction.summa_rashoda);
+  document.getElementById('expense-report-amount').textContent = Number.isFinite(amount) ? fmt(amount) : '—';
+  renderExpenseReportMedia(document.getElementById('expense-report-photos'),null,'photo');
+  renderExpenseReportMedia(document.getElementById('expense-report-videos'),null,'video');
+  const status = document.getElementById('expense-report-status');
+  status.textContent = 'Загружаем фото-видео отчёт…';
+  document.getElementById('fs-expense-report').style.display = 'flex';
+  if(!sessionToken){
+    status.textContent = 'Войдите, чтобы увидеть фото-видео отчёт.';
+    return;
+  }
+
+  fetch(`/api/partner/car-expense-reports?car_id=${encodeURIComponent(car.id)}`,{
+    headers:{Authorization:'Bearer ' + sessionToken}
+  }).then(async response=>{
+    const result = await response.json().catch(()=>({}));
+    if(requestId !== expenseReportRequestId || AppState.sessionToken !== sessionToken) return;
+    if(!(response.headers.get('content-type') || '').includes('application/json')){
+      throw new Error(`Сервис отчётов вернул не JSON (HTTP ${response.status}).`);
+    }
+    if(!response.ok) throw new Error(result.error || 'Не удалось загрузить фото-видео отчёт.');
+    if(!Array.isArray(result.reports)) throw new Error('Сервис вернул некорректные данные отчёта.');
+    const report = findExpenseReport(result.reports,transaction);
+    if(!report){
+      status.textContent = 'Отчёт для этого расхода не найден.';
+      return;
+    }
+    document.getElementById('expense-report-date').textContent = report.date
+      ? formatFinanceTransactionDate(report.date,false)
+      : formatFinanceTransactionDate(transaction.created_at,false);
+    document.getElementById('expense-report-description').textContent = report.description || transaction.type_rashoda || 'Расход';
+    document.getElementById('expense-report-amount').textContent = Number.isFinite(report.amount) ? fmt(report.amount) : (Number.isFinite(amount) ? fmt(amount) : '—');
+    renderExpenseReportMedia(document.getElementById('expense-report-photos'),report.photo,'photo');
+    renderExpenseReportMedia(document.getElementById('expense-report-videos'),report.video,'video');
+    status.textContent = '';
+  }).catch(error=>{
+    if(requestId !== expenseReportRequestId || AppState.sessionToken !== sessionToken) return;
+    console.error('[Analytics] Ошибка загрузки фото-видео отчёта:',error);
+    status.textContent = error.message || 'Не удалось загрузить фото-видео отчёт.';
+  });
+}
+
+function closeAnalyticsExpenseReport(){
+  expenseReportRequestId++;
+  document.getElementById('fs-expense-report').style.display = 'none';
 }
 
 function updateFinanceMonthLabel(){
@@ -1740,7 +1893,7 @@ function formatFinanceTransactionDate(value,includeTime = true){
   return new Intl.DateTimeFormat('ru-RU',options).format(date);
 }
 
-function appendFinanceTransaction(transaction,targetList = document.getElementById('tx-list'),includeTime = true){
+function appendFinanceTransaction(transaction,targetList = document.getElementById('tx-list'),includeTime = true,onExpenseClick = null){
   const row = document.createElement('div');
   row.className = 'tx-row finance-tx-row';
   const isExpense = transaction.type === false;
@@ -1788,6 +1941,19 @@ function appendFinanceTransaction(transaction,targetList = document.getElementBy
     : String(rawAmount ?? '—');
   row.append(icon,body,amount);
   targetList.appendChild(row);
+  if(isExpense && typeof onExpenseClick === 'function'){
+    row.classList.add('expense-report-row');
+    row.setAttribute('role','button');
+    row.tabIndex = 0;
+    row.setAttribute('aria-label',`Фото-видео отчёт: ${title.textContent}`);
+    row.addEventListener('click',onExpenseClick);
+    row.addEventListener('keydown',event=>{
+      if(event.key === 'Enter' || event.key === ' '){
+        event.preventDefault();
+        onExpenseClick();
+      }
+    });
+  }
 }
 
 function setFinanceTransactionStatus(text, retry = false){

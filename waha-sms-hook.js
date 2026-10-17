@@ -1098,6 +1098,75 @@ app.get('/api/partner/finance-summary', async (req, res) => {
   }
 });
 
+app.get('/api/partner/car-expense-reports', async (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: 'Сессия истекла. Войдите в аккаунт повторно' });
+
+  const requestedCarId = req.query.car_id;
+  if (typeof requestedCarId !== 'string' || !requestedCarId.trim() || requestedCarId.length > 64) {
+    return res.status(400).json({ error: 'Некорректный автомобиль' });
+  }
+
+  try {
+    const profile = await findProfile(userId);
+    if (!profile) return res.status(404).json({ error: 'Профиль пользователя не найден' });
+
+    const filterValue = value => value == null ? 'is.null' : `eq.${value}`;
+    const carsResponse = await axios.get(`${supabaseUrl}/rest/v1/cars`, {
+      params: {
+        hozyain_id: `eq.${userId}`,
+        kompaniya_id: filterValue(profile.compani_id),
+        cityID: filterValue(profile.city_id),
+        arfive: 'eq.false',
+        id: `eq.${requestedCarId}`,
+        select: 'id,marka,model,gos_nomer,procent_ot_avto'
+      },
+      headers: serviceHeaders(),
+      timeout: 10000
+    });
+    const car = carsResponse.data?.[0];
+    if (!car) return res.status(403).json({ error: 'Автомобиль не принадлежит текущему партнёру' });
+
+    const percentage = car.procent_ot_avto == null ? NaN : Number(car.procent_ot_avto);
+    if (!Number.isFinite(percentage) || percentage < 0 || percentage > 100) {
+      return res.status(502).json({ error: 'Для автомобиля не задан корректный процент партнёра' });
+    }
+
+    const reportsResponse = await axios.get(`${supabaseUrl}/rest/v1/rashody`, {
+      params: {
+        id_car: `eq.${car.id}`,
+        select: '*'
+      },
+      headers: { ...serviceHeaders(), Prefer: 'count=exact' },
+      timeout: 10000
+    });
+    const reports = (reportsResponse.data || []).map(report => {
+      const knownDateKeys = ['created_at', 'date_rashoda', 'data_rashoda', 'date_rashodov', 'data_rashodov', 'data_sozdaniya', 'date'];
+      const dateValue = knownDateKeys.map(key => report[key]).find(value => value != null && String(value).trim()) ||
+        Object.entries(report).find(([key, value]) =>
+          /(created_at|date|time)/i.test(key) && typeof value === 'string' && Number.isFinite(Date.parse(value))
+        )?.[1] || null;
+      const amount = report.stoimost_rashodov == null ? null : Number(report.stoimost_rashodov);
+      return {
+        id: report.id ?? null,
+        date: dateValue,
+        description: report.opisanie_rashodov ?? '',
+        amount: Number.isFinite(amount) ? amount * percentage / 100 : null,
+        photo: report.photo ?? null,
+        video: report.video ?? null
+      };
+    });
+
+    return res.json({ car, percentage, reports });
+  } catch (error) {
+    console.error('[Expenses] Ошибка загрузки фото-видео отчёта:', {
+      status: error.response?.status || null,
+      details: error.response?.data || error.message
+    });
+    return res.status(502).json({ error: 'Не удалось загрузить фото-видео отчёт расхода' });
+  }
+});
+
 app.get('/api/partner/sublease-cars', async (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.status(401).json({ error: 'Сессия истекла. Войдите в аккаунт повторно' });
