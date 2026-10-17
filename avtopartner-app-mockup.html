@@ -124,8 +124,9 @@
   .analytics-history-empty{ padding:22px 12px; color:var(--text-lo); font-size:13px; text-align:center;}
   .expense-report-facts{ display:grid; grid-template-columns:1fr auto; align-items:start; gap:12px; margin-bottom:14px; padding-bottom:14px; border-bottom:1px solid var(--line);}
   .expense-report-fact-label{ color:var(--text-lo); font-size:11px; font-weight:600;}
-  .expense-report-fact-value{ margin-top:4px; color:var(--text-hi); font-size:13px; font-weight:700; overflow-wrap:anywhere;}
+  .expense-report-fact-value{ margin-top:4px; color:var(--text-hi); font-size:15px; font-weight:700; overflow-wrap:anywhere;}
   .expense-report-amount{ text-align:right; white-space:nowrap;}
+  .expense-report-amount .expense-report-fact-value{ font-size:19px; line-height:1.2; font-weight:800;}
   .expense-report-description{ margin-bottom:18px; color:var(--text-hi); font-size:13px; line-height:1.5; overflow-wrap:anywhere;}
   .expense-report-section-title{ margin:16px 0 10px; color:var(--text-hi); font-size:14px; font-weight:700;}
   .expense-report-media{ display:grid; grid-template-columns:1fr; gap:10px;}
@@ -293,6 +294,10 @@
   #fs-analytics-car .fs-title-wrap{ position:absolute; left:50%; width:calc(100% - 104px); min-width:0; transform:translateX(-50%); text-align:center;}
   #fs-analytics-car .fs-title{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
   #fs-analytics-car .fs-back{ margin-left:auto; flex-shrink:0;}
+  #fs-expense-report .fs-topbar{ position:relative;}
+  #fs-expense-report .fs-title-wrap{ position:absolute; left:50%; width:calc(100% - 104px); min-width:0; transform:translateX(-50%); text-align:center;}
+  #fs-expense-report .fs-title,#fs-expense-report .fs-sub{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  #fs-expense-report .fs-back{ margin-left:auto; flex-shrink:0;}
   .fs-menu{ width:34px; height:34px; border-radius:50%; background:var(--card); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--text-lo);}
   .fs-body{ flex:1; overflow-y:auto; padding:14px 18px 100px; scrollbar-width:none;}
   .fs-body::-webkit-scrollbar{display:none;}
@@ -743,8 +748,9 @@
       <div class="fs-body">
         <div class="expense-report-facts">
           <div><div class="expense-report-fact-label">Дата расхода</div><div class="expense-report-fact-value" id="expense-report-date"></div></div>
-          <div class="expense-report-amount"><div class="expense-report-fact-label">Сумма с учётом процента</div><div class="expense-report-fact-value" id="expense-report-amount"></div></div>
+          <div class="expense-report-amount"><div class="expense-report-fact-label">Сумма</div><div class="expense-report-fact-value" id="expense-report-amount"></div></div>
         </div>
+        <div class="expense-report-section-title">Описание расходов</div>
         <div class="expense-report-description" id="expense-report-description"></div>
         <div class="expense-report-section-title">Фотоотчёт</div>
         <div class="expense-report-media" id="expense-report-photos"></div>
