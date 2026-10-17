@@ -136,9 +136,8 @@
   .analytics-utilization-car-name{ color:var(--text-hi); font-size:13px; font-weight:800; overflow-wrap:anywhere;}
   .analytics-utilization-car-plate{ margin-top:3px; color:var(--text-lo); font-size:11px;}
   .analytics-utilization-car-percent{ color:var(--blue2); font-size:17px; font-weight:800; white-space:nowrap;}
-  .analytics-utilization-bar{ display:flex; height:8px; margin:12px 0 9px; overflow:hidden; border-radius:8px; background:var(--line);}
-  .analytics-utilization-bar-rented{ background:var(--blue2);}
-  .analytics-utilization-bar-garage{ background:var(--green);}
+  .analytics-utilization-bar{ height:8px; margin:12px 0 9px; overflow:hidden; border-radius:8px; background:var(--line);}
+  .analytics-utilization-bar-rented{ height:100%; border-radius:inherit; background:var(--blue2); transition:width .25s ease;}
   .analytics-utilization-car-days{ display:flex; justify-content:space-between; gap:10px; color:var(--text-lo); font-size:10px;}
   #fs-analytics-utilization .fs-topbar{ position:relative;}
   #fs-analytics-utilization .fs-title-wrap{ position:absolute; left:50%; width:calc(100% - 104px); min-width:0; transform:translateX(-50%); text-align:center;}
@@ -1351,17 +1350,20 @@ function renderAnalyticsUtilizationDetails(data){
     identity.append(name,plate);
     const percent = document.createElement('div');
     percent.className = 'analytics-utilization-car-percent';
-    percent.textContent = `${Number(car.utilizationPercent)||0}%`;
+    const utilizationPercent = Math.min(100,Math.max(0,Number(car.utilizationPercent)||0));
+    percent.textContent = `${utilizationPercent}%`;
     head.append(identity,percent);
     const bar = document.createElement('div');
     bar.className = 'analytics-utilization-bar';
+    bar.setAttribute('role','progressbar');
+    bar.setAttribute('aria-label',`Загрузка: ${name.textContent}`);
+    bar.setAttribute('aria-valuemin','0');
+    bar.setAttribute('aria-valuemax','100');
+    bar.setAttribute('aria-valuenow',String(utilizationPercent));
     const rentedBar = document.createElement('div');
     rentedBar.className = 'analytics-utilization-bar-rented';
-    rentedBar.style.width = `${Number(car.utilizationPercent)||0}%`;
-    const garageBar = document.createElement('div');
-    garageBar.className = 'analytics-utilization-bar-garage';
-    garageBar.style.width = `${100-(Number(car.utilizationPercent)||0)}%`;
-    bar.append(rentedBar,garageBar);
+    rentedBar.style.width = `${utilizationPercent}%`;
+    bar.appendChild(rentedBar);
     const days = document.createElement('div');
     days.className = 'analytics-utilization-car-days';
     const rentedDays = document.createElement('span');
