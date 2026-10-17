@@ -108,6 +108,17 @@
   .date-nav{ display:flex; align-items:center; justify-content:center; gap:14px; margin-bottom:14px; color:var(--text-hi); font-weight:700; font-size:14px;}
   .date-arrow{ width:26px; height:26px; border-radius:50%; background:var(--card); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; cursor:pointer; color:var(--text-lo); font-size:12px; padding:0;}
   .date-arrow:disabled{ opacity:.4; cursor:default;}
+  .analytics-profit-card{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px; margin-bottom:10px; box-shadow:0 5px 14px rgba(31,41,55,.05);}
+  .analytics-profit-label{ color:var(--blue2); font-size:12px; font-weight:700;}
+  .analytics-profit-value{ color:var(--text-hi); font-size:26px; line-height:1.2; font-weight:800; margin-top:6px; overflow-wrap:anywhere;}
+  .analytics-profit-formula{ color:var(--text-lo); font-size:11px; margin-top:5px;}
+  .analytics-components{ display:grid; grid-template-columns:minmax(0,1fr) 18px minmax(0,1fr); align-items:center; gap:7px; margin-bottom:8px;}
+  .analytics-component{ min-width:0; position:relative; overflow:hidden; background:var(--card); border:1px solid var(--line); border-radius:14px; padding:12px 10px 12px 13px; box-shadow:0 5px 14px rgba(31,41,55,.04);}
+  .analytics-component:before{ content:''; position:absolute; inset:0 auto 0 0; width:3px; background:var(--green);}
+  .analytics-component.expense:before{ background:var(--red);}
+  .analytics-component-label{ color:var(--text-lo); font-size:11px; font-weight:600;}
+  .analytics-component-value{ color:var(--text-hi); font-size:14px; line-height:1.3; font-weight:800; margin-top:5px; overflow-wrap:anywhere;}
+  .analytics-operator{ color:var(--text-lo); font-size:18px; font-weight:700; text-align:center;}
 
   .sum-card{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:15px 16px; display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; cursor:pointer; box-shadow:0 5px 14px rgba(31,41,55,.05);}
   .sum-label{ font-size:12px; font-weight:600;}
@@ -525,21 +536,34 @@
     <!-- ================= АНАЛИТИКА ================= -->
     <div class="screen" id="screen-analytics" style="display:none;">
       <div class="page-title">Аналитика</div>
-      <div class="segment">
-        <div class="seg-btn active" onclick="setSeg(this)">Месяц</div>
-        <div class="seg-btn" onclick="setSeg(this)">Квартал</div>
-        <div class="seg-btn" onclick="setSeg(this)">Год</div>
+      <div class="segment" id="analytics-period-tabs">
+        <div class="seg-btn active" data-period="month" onclick="setAnalyticsPeriod('month',this)">Месяц</div>
+        <div class="seg-btn" data-period="quarter" onclick="setAnalyticsPeriod('quarter',this)">Квартал</div>
+        <div class="seg-btn" data-period="year" onclick="setAnalyticsPeriod('year',this)">Год</div>
       </div>
-      <div class="date-nav"><div class="date-arrow" onclick="showToast('Апрель 2024')">‹</div><span>📅 Май 2024</span><div class="date-arrow" onclick="showToast('Июнь ещё не закрыт')">›</div></div>
+      <div class="date-nav">
+        <button class="date-arrow" type="button" id="analytics-previous-period" onclick="changeAnalyticsPeriod(-1)" aria-label="Предыдущий месяц">‹</button>
+        <span id="analytics-period-label"></span>
+        <button class="date-arrow" type="button" id="analytics-next-period" onclick="changeAnalyticsPeriod(1)" aria-label="Следующий месяц">›</button>
+      </div>
 
-      <div class="row2">
-        <div class="mini-card" style="cursor:default;"><div class="mini-label g">Доход</div><div class="mini-num" style="font-size:15.5px;">424 000 ₸</div><div class="mini-delta" style="color:var(--green)">↑ 11% к апрелю</div></div>
-        <div class="mini-card" style="cursor:default;"><div class="mini-label r">Расходы</div><div class="mini-num" style="font-size:15.5px;">78 500 ₸</div><div class="mini-delta" style="color:var(--red)">↑ 6% к апрелю</div></div>
+      <div class="analytics-profit-card">
+        <div class="analytics-profit-label">Прибыль</div>
+        <div class="analytics-profit-value" id="analytics-profit">—</div>
+        <div class="analytics-profit-formula">Доход − расходы</div>
       </div>
-      <div class="row2">
-        <div class="mini-card" style="cursor:default;"><div class="mini-label" style="color:var(--blue2)">Прибыль</div><div class="mini-num" style="font-size:15.5px;">345 500 ₸</div><div class="mini-delta" style="color:var(--green)">↑ 13% к апрелю</div></div>
-        <div class="mini-card" style="cursor:default;"><div class="mini-label" style="color:var(--purple)">Рентабельность</div><div class="mini-num" style="font-size:15.5px;">82%</div><div class="mini-delta" style="color:var(--purple)">↑ 4 п.п. к апрелю</div></div>
+      <div class="analytics-components" aria-label="Состав прибыли">
+        <div class="analytics-component">
+          <div class="analytics-component-label">Доход</div>
+          <div class="analytics-component-value" id="analytics-income">—</div>
+        </div>
+        <div class="analytics-operator" aria-hidden="true">−</div>
+        <div class="analytics-component expense">
+          <div class="analytics-component-label">Расходы</div>
+          <div class="analytics-component-value" id="analytics-expense">—</div>
+        </div>
       </div>
+      <div class="finance-tx-status" id="analytics-summary-status" role="status" aria-live="polite"></div>
 
       <div class="sec-head"><div class="sec-title">Загрузка моих машин</div></div>
       <div class="white-card">
@@ -933,6 +957,9 @@ let financeSummaryLoading = false;
 let financeSummary = {income:0,expense:0,expensesByType:[],profitByPeriod:[]};
 const ANALYTICS_CAR_PERCENT = 100;
 let analyticsTopCarsRequestId = 0;
+let analyticsSummaryRequestId = 0;
+let analyticsSelectedMonth = new Date(new Date().getFullYear(),new Date().getMonth(),1);
+let analyticsSelectedPeriod = 'month';
 const CARS = {
   camry:{
     name:'Toyota Camry', plate:'A123BC 777', photo:'🚘', year:'2021', color:'Чёрный', mileage:'68 500 км', status:'Активен', statusClass:'active',
@@ -1017,7 +1044,7 @@ function switchTab(tab){
     loadFinanceCars();
     loadFinanceTransactions(true);
   }
-  if(tab==='analytics') loadAnalyticsTopCars();
+  if(tab==='analytics') loadAnalyticsData();
   if(tab==='profile') renderProfile();
 }
 
@@ -1033,7 +1060,124 @@ function setPartnerContractSearch(value){
   clearTimeout(partnerContractsSearchTimer);
   partnerContractsSearchTimer = setTimeout(()=>loadPartnerContracts(true), 250);
 }
-function setSeg(el){ el.parentElement.querySelectorAll('.seg-btn').forEach(c=>c.classList.remove('active')); el.classList.add('active'); showToast('Период: '+el.textContent); }
+function setAnalyticsPeriod(period,element){
+  analyticsSelectedPeriod = period;
+  document.querySelectorAll('#analytics-period-tabs .seg-btn').forEach(button=>button.classList.toggle('active',button===element));
+  loadAnalyticsData();
+}
+
+function changeAnalyticsPeriod(delta){
+  const monthsPerStep = analyticsSelectedPeriod === 'year' ? 12 : analyticsSelectedPeriod === 'quarter' ? 3 : 1;
+  const nextMonth = new Date(analyticsSelectedMonth.getFullYear(),analyticsSelectedMonth.getMonth()+delta*monthsPerStep,1);
+  const current = new Date();
+  const periodStartMonth = analyticsSelectedPeriod === 'year'
+    ? 0
+    : analyticsSelectedPeriod === 'quarter'
+      ? Math.floor(nextMonth.getMonth()/3)*3
+      : nextMonth.getMonth();
+  const currentStartMonth = analyticsSelectedPeriod === 'year'
+    ? 0
+    : analyticsSelectedPeriod === 'quarter'
+      ? Math.floor(current.getMonth()/3)*3
+      : current.getMonth();
+  if(delta > 0 && new Date(nextMonth.getFullYear(),periodStartMonth,1) > new Date(current.getFullYear(),currentStartMonth,1)) return;
+  analyticsSelectedMonth = nextMonth;
+  loadAnalyticsData();
+}
+
+function getAnalyticsPeriodRange(){
+  const startMonth = analyticsSelectedPeriod === 'year'
+    ? 0
+    : analyticsSelectedPeriod === 'quarter'
+      ? Math.floor(analyticsSelectedMonth.getMonth()/3)*3
+      : analyticsSelectedMonth.getMonth();
+  const monthCount = analyticsSelectedPeriod === 'year' ? 12 : analyticsSelectedPeriod === 'quarter' ? 3 : 1;
+  return {
+    from:new Date(analyticsSelectedMonth.getFullYear(),startMonth,1).toISOString(),
+    to:new Date(analyticsSelectedMonth.getFullYear(),startMonth+monthCount,1).toISOString(),
+    period:analyticsSelectedPeriod,
+    year:analyticsSelectedMonth.getFullYear(),
+    month:analyticsSelectedMonth.getMonth()+1
+  };
+}
+
+function updateAnalyticsPeriodUI(){
+  const label = document.getElementById('analytics-period-label');
+  const current = new Date();
+  const selectedStartMonth = analyticsSelectedPeriod === 'year'
+    ? 0
+    : analyticsSelectedPeriod === 'quarter'
+      ? Math.floor(analyticsSelectedMonth.getMonth()/3)*3
+      : analyticsSelectedMonth.getMonth();
+  const currentStartMonth = analyticsSelectedPeriod === 'year'
+    ? 0
+    : analyticsSelectedPeriod === 'quarter'
+      ? Math.floor(current.getMonth()/3)*3
+      : current.getMonth();
+  let display;
+  if(analyticsSelectedPeriod === 'quarter'){
+    const quarter = Math.floor(analyticsSelectedMonth.getMonth()/3)+1;
+    display = `${['I','II','III','IV'][quarter-1]} квартал ${analyticsSelectedMonth.getFullYear()}`;
+  }else if(analyticsSelectedPeriod === 'year'){
+    display = String(analyticsSelectedMonth.getFullYear());
+  }else{
+    const month = new Intl.DateTimeFormat('ru-RU',{month:'long',year:'numeric'}).format(analyticsSelectedMonth);
+    display = month.charAt(0).toUpperCase() + month.slice(1);
+  }
+  label.textContent = '📅 ' + display;
+  const unit = analyticsSelectedPeriod === 'year' ? 'год' : analyticsSelectedPeriod === 'quarter' ? 'квартал' : 'месяц';
+  document.getElementById('analytics-previous-period').setAttribute('aria-label',`Предыдущий ${unit}`);
+  document.getElementById('analytics-next-period').setAttribute('aria-label',`Следующий ${unit}`);
+  document.getElementById('analytics-next-period').disabled =
+    new Date(analyticsSelectedMonth.getFullYear(),selectedStartMonth,1) >= new Date(current.getFullYear(),currentStartMonth,1);
+}
+
+function loadAnalyticsData(){
+  updateAnalyticsPeriodUI();
+  loadAnalyticsSummary();
+  loadAnalyticsTopCars();
+}
+
+async function loadAnalyticsSummary(){
+  const requestId = ++analyticsSummaryRequestId;
+  const incomeElement = document.getElementById('analytics-income');
+  const expenseElement = document.getElementById('analytics-expense');
+  const profitElement = document.getElementById('analytics-profit');
+  const status = document.getElementById('analytics-summary-status');
+  incomeElement.textContent = '—';
+  expenseElement.textContent = '—';
+  profitElement.textContent = '—';
+  if(!AppState.uid || !AppState.sessionToken){
+    status.textContent = 'Войдите, чтобы увидеть финансовые итоги.';
+    return;
+  }
+
+  const sessionToken = AppState.sessionToken;
+  status.textContent = 'Загружаем финансовые итоги…';
+  try{
+    const params = new URLSearchParams(getAnalyticsPeriodRange());
+    const response = await fetch(`/api/partner/finance-summary?${params}`,{
+      headers:{Authorization:'Bearer ' + sessionToken}
+    });
+    const result = await response.json().catch(()=>({}));
+    if(requestId !== analyticsSummaryRequestId || AppState.sessionToken !== sessionToken) return;
+    if(!(response.headers.get('content-type') || '').includes('application/json')){
+      throw new Error(`Сервис итогов вернул не JSON (HTTP ${response.status}).`);
+    }
+    if(!response.ok) throw new Error(result.error || 'Не удалось загрузить финансовые итоги.');
+    if(!Number.isFinite(result.income) || !Number.isFinite(result.expense)){
+      throw new Error('Сервис вернул некорректные финансовые итоги.');
+    }
+    incomeElement.textContent = fmt(result.income);
+    expenseElement.textContent = fmt(result.expense);
+    profitElement.textContent = fmt(result.income - result.expense);
+    status.textContent = '';
+  }catch(error){
+    if(requestId !== analyticsSummaryRequestId || AppState.sessionToken !== sessionToken) return;
+    console.error('[Analytics] Ошибка загрузки итогов:',error);
+    status.textContent = error.message || 'Не удалось загрузить финансовые итоги.';
+  }
+}
 
 function setFinancePeriod(period,element){
   financeSelectedPeriod = period;
@@ -1123,7 +1267,7 @@ async function loadAnalyticsTopCars(){
 
   const sessionToken = AppState.sessionToken;
   const headers = {Authorization:'Bearer ' + sessionToken};
-  const period = getCurrentFinanceMonthRange();
+  const period = getAnalyticsPeriodRange();
   const periodParams = new URLSearchParams({
     from:period.from,
     to:period.to,
