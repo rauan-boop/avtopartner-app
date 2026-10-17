@@ -1332,6 +1332,12 @@ app.get('/api/partner/contracts', async (req, res) => {
   if (modelSearch.length > 100) {
     return res.status(400).json({ error: 'Слишком длинный поисковый запрос модели автомобиля' });
   }
+  const currentMonthSlice = req.query.current_month === 'true';
+  const currentMonthFrom = req.query.current_month_from;
+  const currentDate = req.query.current_date;
+  if (currentMonthSlice && (!isValidCalendarDate(currentMonthFrom) || !isValidCalendarDate(currentDate) || currentDate < currentMonthFrom)) {
+    return res.status(400).json({ error: 'Некорректный период долгосрочной аренды' });
+  }
 
   try {
     const profile = await findProfile(userId);
@@ -1346,6 +1352,11 @@ app.get('/api/partner/contracts', async (req, res) => {
       order: 'date_nachala_arendy.desc,id.desc'
     };
     if (status !== 'all') filters.status_dogovora = `eq.${status === 'active'}`;
+    if (currentMonthSlice) {
+      filters.status_dogovora = 'eq.true';
+      filters.date_nachala_arendy = `lt.${currentMonthFrom}`;
+      filters.date_okonchaniya_arendy = `gte.${currentDate}`;
+    }
     if (modelSearch) filters.model_avto = `ilike.*${modelSearch}*`;
     const response = await axios.get(`${supabaseUrl}/rest/v1/contracts`, {
       params: filters,
@@ -1353,7 +1364,7 @@ app.get('/api/partner/contracts', async (req, res) => {
         ...serviceHeaders(),
         Prefer: 'count=exact',
         'Range-Unit': 'items',
-        Range: `${offset}-${offset + 2}`
+        Range: currentMonthSlice ? '0-999' : `${offset}-${offset + 2}`
       },
       timeout: 10000
     });

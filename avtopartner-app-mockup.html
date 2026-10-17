@@ -3530,7 +3530,7 @@ function appendContractWithMonth(contract, list){
   list.appendChild(createContractCard(contract));
 }
 
-function createContractCard(contract){
+function createContractCard(contract, displayPeriod = null){
   const card = document.createElement('div');
   card.className = 'booking-card';
 
@@ -3553,14 +3553,58 @@ function createContractCard(contract){
   dates.className = 'bk-dates';
   const startDate = document.createElement('span');
   startDate.className = 'bk-date';
-  startDate.textContent = `📅 ${formatContractDate(contract.date_nachala_arendy)}`;
+  startDate.textContent = `📅 ${formatContractDate(displayPeriod?.start || contract.date_nachala_arendy)}`;
   const endDate = document.createElement('span');
   endDate.className = 'bk-date';
-  endDate.textContent = `📅 ${formatContractDate(contract.date_okonchaniya_arendy)}`;
+  endDate.textContent = `📅 ${formatContractDate(displayPeriod?.end || contract.date_okonchaniya_arendy)}`;
   dates.append(startDate, endDate);
 
   card.append(top, dates);
   return card;
+}
+
+async function appendCurrentMonthLongTermContracts(list, sessionToken, requestId){
+  if(partnerContractsStatusFilter === 'completed') return;
+  const today = new Date();
+  const monthStart = new Date(today.getFullYear(),today.getMonth(),1);
+  const toCalendarDate = date => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+  const params = new URLSearchParams({
+    offset:'0',
+    status:'active',
+    current_month:'true',
+    current_month_from:toCalendarDate(monthStart),
+    current_date:toCalendarDate(today)
+  });
+  if(partnerContractsModelSearch) params.set('model',partnerContractsModelSearch);
+
+  try{
+    const response = await fetch(`/api/partner/contracts?${params.toString()}`,{
+      headers:{Authorization:`Bearer ${sessionToken}`}
+    });
+    if(requestId !== partnerContractsRequestId || AppState.sessionToken !== sessionToken) return;
+    if(!(response.headers.get('content-type') || '').includes('application/json')){
+      throw new Error(`Сервис долгосрочных аренд вернул не JSON (HTTP ${response.status})`);
+    }
+    const result = await response.json();
+    if(requestId !== partnerContractsRequestId || AppState.sessionToken !== sessionToken) return;
+    if(!response.ok) throw new Error(result.error || 'Не удалось загрузить долгосрочные аренды');
+    if(!Array.isArray(result.contracts)) throw new Error('Сервис долгосрочных аренд вернул данные в неверном формате');
+    if(!result.contracts.length) return;
+
+    const month = contractMonth(toCalendarDate(monthStart));
+    if(month.key !== partnerContractsLastMonthKey){
+      const heading = document.createElement('div');
+      heading.className = 'contract-month-heading';
+      heading.textContent = month.label;
+      list.appendChild(heading);
+      partnerContractsLastMonthKey = month.key;
+    }
+    result.contracts.forEach(contract=>list.appendChild(createContractCard(contract,{start:monthStart,end:today})));
+  }catch(error){
+    if(requestId === partnerContractsRequestId && AppState.sessionToken === sessionToken){
+      console.error('[Contracts] Ошибка загрузки долгосрочных аренд за текущий месяц:',error);
+    }
+  }
 }
 
 async function loadPartnerContracts(reset = false){
@@ -3591,6 +3635,12 @@ async function loadPartnerContracts(reset = false){
   if(partnerContractsOffset === 0) list.innerHTML = '<div class="info-row"><span class="l">Загрузка аренд…</span></div>';
 
   try{
+    if(requestOffset === 0){
+      list.replaceChildren();
+      partnerContractsLastMonthKey = null;
+      await appendCurrentMonthLongTermContracts(list,sessionToken,requestId);
+      if(requestId !== partnerContractsRequestId || AppState.sessionToken !== sessionToken) return;
+    }
     const response = await fetch(`/api/partner/contracts?${params.toString()}`, {
       headers:{Authorization:`Bearer ${AppState.sessionToken}`}
     });
@@ -3605,15 +3655,14 @@ async function loadPartnerContracts(reset = false){
     }
 
     if(requestOffset === 0){
-      list.replaceChildren();
-      partnerContractsLastMonthKey = null;
+      if(!list.children.length) partnerContractsLastMonthKey = null;
     }
-    if(result.contracts.length === 0 && requestOffset === 0){
+    if(result.contracts.length === 0 && requestOffset === 0 && !list.children.length){
       const empty = document.createElement('div');
       empty.className = 'info-row';
       empty.textContent = 'Аренд пока нет';
       list.appendChild(empty);
-    }else{
+    }else if(result.contracts.length){
       result.contracts.forEach(contract=>appendContractWithMonth(contract, list));
     }
     partnerContractsOffset = requestOffset + result.contracts.length;
