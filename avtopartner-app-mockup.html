@@ -558,17 +558,9 @@
         </div>
       </div>
 
-      <div class="sec-head"><div class="sec-title">Топ автомобилей по доходу</div></div>
-      <div class="car-row" onclick="openCarDetail('camry','analytics')">
-        <div class="car-thumb">🚘</div>
-        <div class="car-mid"><div class="car-name">1 · Toyota Camry</div><div class="car-plate">A123BC 777</div></div>
-        <div class="car-right"><div class="car-amt">245 600 ₸</div><div class="car-delta g">↑ 12%</div></div>
-      </div>
-      <div class="car-row" onclick="openCarDetail('rio','analytics')">
-        <div class="car-thumb">🚙</div>
-        <div class="car-mid"><div class="car-name">2 · Kia Rio</div><div class="car-plate">B456DE 777</div></div>
-        <div class="car-right"><div class="car-amt">178 400 ₸</div><div class="car-delta g">↑ 9%</div></div>
-      </div>
+      <div class="sec-head"><div class="sec-title">Топ автомобилей по прибыли</div></div>
+      <div id="analytics-top-cars"></div>
+      <div class="finance-tx-status" id="analytics-top-cars-status" role="status" aria-live="polite"></div>
     </div>
 
     <!-- ================= ПРОФИЛЬ ================= -->
@@ -939,6 +931,8 @@ let financeCarsOwnerId = null;
 let financeSummaryRequestId = 0;
 let financeSummaryLoading = false;
 let financeSummary = {income:0,expense:0,expensesByType:[],profitByPeriod:[]};
+const ANALYTICS_CAR_PERCENT = 100;
+let analyticsTopCarsRequestId = 0;
 const CARS = {
   camry:{
     name:'Toyota Camry', plate:'A123BC 777', photo:'🚘', year:'2021', color:'Чёрный', mileage:'68 500 км', status:'Активен', statusClass:'active',
@@ -1023,6 +1017,7 @@ function switchTab(tab){
     loadFinanceCars();
     loadFinanceTransactions(true);
   }
+  if(tab==='analytics') loadAnalyticsTopCars();
   if(tab==='profile') renderProfile();
 }
 
@@ -1113,6 +1108,96 @@ async function loadFinanceCars(){
     row.appendChild(errorLabel);
   }finally{
     if(requestId === financeCarsRequestId) financeCarsLoading = false;
+  }
+}
+
+async function loadAnalyticsTopCars(){
+  const requestId = ++analyticsTopCarsRequestId;
+  const list = document.getElementById('analytics-top-cars');
+  const status = document.getElementById('analytics-top-cars-status');
+  list.replaceChildren();
+  if(!AppState.uid || !AppState.sessionToken){
+    status.textContent = 'Войдите, чтобы увидеть автомобили и их прибыль.';
+    return;
+  }
+
+  const sessionToken = AppState.sessionToken;
+  const headers = {Authorization:'Bearer ' + sessionToken};
+  const period = getCurrentFinanceMonthRange();
+  const periodParams = new URLSearchParams({
+    from:period.from,
+    to:period.to,
+    period:period.period,
+    year:String(period.year),
+    month:String(period.month)
+  });
+  status.textContent = 'Загружаем прибыль по автомобилям…';
+
+  try{
+    const carsResponse = await fetch(`/api/partner/cars?hozyain_id=${encodeURIComponent(AppState.uid)}`,{headers});
+    const carsResult = await carsResponse.json().catch(()=>({}));
+    if(requestId !== analyticsTopCarsRequestId || AppState.sessionToken !== sessionToken) return;
+    if(!(carsResponse.headers.get('content-type') || '').includes('application/json')){
+      throw new Error(`Сервис автомобилей вернул не JSON (HTTP ${carsResponse.status}).`);
+    }
+    if(!carsResponse.ok) throw new Error(carsResult.error || 'Не удалось загрузить автомобили партнёра.');
+    if(!Array.isArray(carsResult.cars)) throw new Error('Сервис вернул некорректный список автомобилей.');
+    if(!carsResult.cars.length){
+      status.textContent = 'Автомобили не найдены.';
+      return;
+    }
+
+    const carsWithProfit = await Promise.all(carsResult.cars
+      .filter(car=>car && car.id != null)
+      .map(async car=>{
+        const params = new URLSearchParams(periodParams);
+        params.set('car_id',String(car.id));
+        const response = await fetch(`/api/partner/finance-summary?${params}`,{headers});
+        const result = await response.json().catch(()=>({}));
+        if(!response.ok) throw new Error(result.error || `Не удалось загрузить итоги автомобиля ${car.id}.`);
+        if(!Number.isFinite(result.income) || !Number.isFinite(result.expense)){
+          throw new Error('Сервис вернул некорректные финансовые итоги.');
+        }
+        return {
+          ...car,
+          profit:(result.income - result.expense) * ANALYTICS_CAR_PERCENT / 100
+        };
+      }));
+    if(requestId !== analyticsTopCarsRequestId || AppState.sessionToken !== sessionToken) return;
+
+    carsWithProfit.sort((first,second)=>second.profit - first.profit);
+    carsWithProfit.forEach((car,index)=>{
+      const row = document.createElement('div');
+      row.className = 'car-row home-car-row';
+      const thumb = document.createElement('div');
+      thumb.className = 'car-thumb';
+      thumb.textContent = '🚘';
+      const middle = document.createElement('div');
+      middle.className = 'car-mid';
+      const name = document.createElement('div');
+      name.className = 'car-name';
+      name.textContent = `${index + 1} · ${[car.marka,car.model].filter(Boolean).join(' ') || 'Автомобиль'}`;
+      const plate = document.createElement('div');
+      plate.className = 'car-plate';
+      plate.textContent = car.gos_nomer || 'Госномер не указан';
+      middle.append(name,plate);
+      const right = document.createElement('div');
+      right.className = 'car-right';
+      const amount = document.createElement('div');
+      amount.className = 'car-amt';
+      amount.textContent = fmt(car.profit);
+      const share = document.createElement('div');
+      share.className = 'car-delta g';
+      share.textContent = `Доля ${ANALYTICS_CAR_PERCENT}% · заглушка`;
+      right.append(amount,share);
+      row.append(thumb,middle,right);
+      list.appendChild(row);
+    });
+    status.textContent = carsWithProfit.length ? '' : 'Автомобили не найдены.';
+  }catch(error){
+    if(requestId !== analyticsTopCarsRequestId || AppState.sessionToken !== sessionToken) return;
+    console.error('[Analytics] Ошибка загрузки топа автомобилей:',error);
+    status.textContent = error.message || 'Не удалось загрузить прибыль по автомобилям.';
   }
 }
 
