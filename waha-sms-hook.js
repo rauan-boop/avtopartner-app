@@ -886,6 +886,110 @@ function isValidFinancePeriod(period, year, month) {
     Number.isInteger(month) && month >= 1 && month <= 12;
 }
 
+function isValidCalendarDate(value) {
+  return typeof value === 'string' &&
+    /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+    Number.isFinite(Date.parse(`${value}T00:00:00.000Z`)) &&
+    new Date(`${value}T00:00:00.000Z`).toISOString().slice(0, 10) === value;
+}
+
+app.get('/api/partner/car-utilization', async (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: 'Сессия истекла. Войдите в аккаунт повторно' });
+
+  const { from, to } = req.query;
+  if (!isValidCalendarDate(from) || !isValidCalendarDate(to) || from >= to) {
+    return res.status(400).json({ error: 'Некорректный период загрузки автомобилей' });
+  }
+
+  try {
+    const profile = await findProfile(userId);
+    if (!profile) return res.status(404).json({ error: 'Профиль пользователя не найден' });
+
+    const filterValue = value => value == null ? 'is.null' : `eq.${value}`;
+    const carsResponse = await axios.get(`${supabaseUrl}/rest/v1/cars`, {
+      params: {
+        hozyain_id: `eq.${userId}`,
+        kompaniya_id: filterValue(profile.compani_id),
+        cityID: filterValue(profile.city_id),
+        arfive: 'eq.false',
+        select: 'id,marka,model,gos_nomer',
+        order: 'id.asc'
+      },
+      headers: { ...serviceHeaders(), Prefer: 'count=exact' },
+      timeout: 10000
+    });
+    const cars = carsResponse.data || [];
+    const utilizationByCar = new Map(cars.map(car => [String(car.id), {
+      id: car.id,
+      marka: car.marka,
+      model: car.model,
+      gos_nomer: car.gos_nomer,
+      rentedDays: 0,
+      garageDays: 0,
+      totalDays: 0
+    }]));
+
+    if (cars.length) {
+      const carIds = cars.map(car => car.id);
+      const pageSize = 1000;
+      let offset = 0;
+      let total = 0;
+      do {
+        const statesResponse = await axios.get(`${supabaseUrl}/rest/v1/cars_sostoyanie`, {
+          params: {
+            cars_id: `in.(${carIds.join(',')})`,
+            and: `(date.gte.${from},date.lt.${to})`,
+            select: 'cars_id,date,status',
+            order: 'date.asc,cars_id.asc'
+          },
+          headers: {
+            ...serviceHeaders(),
+            Prefer: 'count=exact',
+            'Range-Unit': 'items',
+            Range: `${offset}-${offset + pageSize - 1}`
+          },
+          timeout: 10000
+        });
+        const rangeTotal = Number(statesResponse.headers['content-range']?.split('/')[1]);
+        if (!Number.isFinite(rangeTotal)) throw new Error('Supabase did not return the exact car utilization count');
+        total = rangeTotal;
+        (statesResponse.data || []).forEach(state => {
+          const car = utilizationByCar.get(String(state.cars_id));
+          if (!car) return;
+          if (state.status === true || state.status === 'true') car.rentedDays++;
+          else if (state.status === false || state.status === 'false') car.garageDays++;
+          else return;
+          car.totalDays++;
+        });
+        offset += pageSize;
+      } while (offset < total);
+    }
+
+    const carUtilization = [...utilizationByCar.values()].map(car => ({
+      ...car,
+      utilizationPercent: car.totalDays ? Math.round(car.rentedDays / car.totalDays * 100) : 0
+    }));
+    const totals = carUtilization.reduce((summary, car) => ({
+      rentedDays: summary.rentedDays + car.rentedDays,
+      garageDays: summary.garageDays + car.garageDays,
+      totalDays: summary.totalDays + car.totalDays
+    }), { rentedDays: 0, garageDays: 0, totalDays: 0 });
+
+    return res.json({
+      ...totals,
+      utilizationPercent: totals.totalDays ? Math.round(totals.rentedDays / totals.totalDays * 100) : 0,
+      cars: carUtilization
+    });
+  } catch (error) {
+    console.error('[Analytics] Ошибка загрузки загрузки автомобилей:', {
+      status: error.response?.status || null,
+      details: error.response?.data || error.message
+    });
+    return res.status(502).json({ error: 'Не удалось загрузить загрузку автомобилей' });
+  }
+});
+
 app.get('/api/partner/rent-payments', async (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.status(401).json({ error: 'Сессия истекла. Войдите в аккаунт повторно' });

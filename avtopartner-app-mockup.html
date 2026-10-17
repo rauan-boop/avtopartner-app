@@ -122,6 +122,27 @@
   .analytics-history-period{ margin:4px 0 14px; color:var(--text-lo); font-size:12px; font-weight:600; text-align:center;}
   .analytics-history-transactions .rental-tx-car{ display:none;}
   .analytics-history-empty{ padding:22px 12px; color:var(--text-lo); font-size:13px; text-align:center;}
+  .analytics-utilization-card{ cursor:pointer; transition:transform .15s;}
+  .analytics-utilization-card:active{ transform:scale(.99);}
+  .analytics-utilization-card:focus-visible{ outline:2px solid var(--blue2); outline-offset:2px;}
+  .analytics-utilization-legend{ flex:1; display:flex; flex-direction:column; gap:10px;}
+  .analytics-utilization-status{ min-height:18px; margin-top:10px; color:var(--text-lo); font-size:11px; text-align:center;}
+  .analytics-utilization-overview{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-bottom:16px;}
+  .analytics-utilization-metric{ min-width:0; padding:12px 8px; background:var(--card); border:1px solid var(--line); border-radius:12px; text-align:center;}
+  .analytics-utilization-metric-label{ color:var(--text-lo); font-size:10px; line-height:1.35;}
+  .analytics-utilization-metric-value{ margin-top:5px; color:var(--text-hi); font-size:15px; font-weight:800; overflow-wrap:anywhere;}
+  .analytics-utilization-car{ margin-bottom:10px; padding:14px; background:var(--card); border:1px solid var(--line); border-radius:14px; box-shadow:0 4px 12px rgba(31,41,55,.04);}
+  .analytics-utilization-car-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px;}
+  .analytics-utilization-car-name{ color:var(--text-hi); font-size:13px; font-weight:800; overflow-wrap:anywhere;}
+  .analytics-utilization-car-plate{ margin-top:3px; color:var(--text-lo); font-size:11px;}
+  .analytics-utilization-car-percent{ color:var(--blue2); font-size:17px; font-weight:800; white-space:nowrap;}
+  .analytics-utilization-bar{ display:flex; height:8px; margin:12px 0 9px; overflow:hidden; border-radius:8px; background:var(--line);}
+  .analytics-utilization-bar-rented{ background:var(--blue2);}
+  .analytics-utilization-bar-garage{ background:var(--green);}
+  .analytics-utilization-car-days{ display:flex; justify-content:space-between; gap:10px; color:var(--text-lo); font-size:10px;}
+  #fs-analytics-utilization .fs-topbar{ position:relative;}
+  #fs-analytics-utilization .fs-title-wrap{ position:absolute; left:50%; width:calc(100% - 104px); min-width:0; transform:translateX(-50%); text-align:center;}
+  #fs-analytics-utilization .fs-back{ margin-left:auto; flex-shrink:0;}
   .expense-report-facts{ display:grid; grid-template-columns:1fr auto; align-items:start; gap:12px; margin-bottom:14px; padding-bottom:14px; border-bottom:1px solid var(--line);}
   .expense-report-fact-label{ color:var(--text-lo); font-size:11px; font-weight:600;}
   .expense-report-fact-value{ margin-top:4px; color:var(--text-hi); font-size:15px; font-weight:700; overflow-wrap:anywhere;}
@@ -588,21 +609,22 @@
       </div>
       <div class="finance-tx-status" id="analytics-summary-status" role="status" aria-live="polite"></div>
 
-      <div class="sec-head"><div class="sec-title">Загрузка моих машин</div></div>
-      <div class="white-card">
+      <div class="sec-head"><div class="sec-title">Загрузка автомобилей партнёров</div></div>
+      <div class="white-card analytics-utilization-card" role="button" tabindex="0" aria-label="Открыть загрузку автомобилей за выбранный период" onclick="openAnalyticsUtilizationDetails()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openAnalyticsUtilizationDetails();}">
         <div class="donut-wrap">
           <svg width="96" height="96" viewBox="0 0 96 96">
             <circle cx="48" cy="48" r="38" fill="none" stroke="#ECEEF5" stroke-width="14"/>
-            <circle cx="48" cy="48" r="38" fill="none" stroke="#059669" stroke-width="14" stroke-dasharray="176 238" stroke-dashoffset="0" transform="rotate(-90 48 48)"/>
-            <circle cx="48" cy="48" r="38" fill="none" stroke="#1FAE6B" stroke-width="14" stroke-dasharray="62 238" stroke-dashoffset="-176" transform="rotate(-90 48 48)"/>
-            <text x="48" y="44" text-anchor="middle" font-size="18" font-weight="800" fill="#181D33">46</text>
-            <text x="48" y="59" text-anchor="middle" font-size="9" fill="#8C93A8">авто-дня</text>
+            <circle id="analytics-utilization-rented-arc" cx="48" cy="48" r="38" fill="none" stroke="var(--blue2)" stroke-width="14" stroke-dasharray="0 238.76" transform="rotate(-90 48 48)"/>
+            <circle id="analytics-utilization-garage-arc" cx="48" cy="48" r="38" fill="none" stroke="var(--green)" stroke-width="14" stroke-dasharray="0 238.76" transform="rotate(-90 48 48)"/>
+            <text id="analytics-utilization-total-days" x="48" y="44" text-anchor="middle" font-size="18" font-weight="800" fill="#181D33">0</text>
+            <text x="48" y="59" text-anchor="middle" font-size="9" fill="#8C93A8">авто-дней</text>
           </svg>
-          <div class="donut-legend">
-            <div class="leg-item"><span class="leg-dot" style="background:var(--blue2)"></span>В аренде<span class="leg-val">46 (74%)</span></div>
-            <div class="leg-item"><span class="leg-dot" style="background:var(--green)"></span>Свободны<span class="leg-val">16 (26%)</span></div>
+          <div class="analytics-utilization-legend">
+            <div class="leg-item"><span class="leg-dot" style="background:var(--blue2)"></span>В аренде<span class="leg-val" id="analytics-utilization-rented-label">0 (0%)</span></div>
+            <div class="leg-item"><span class="leg-dot" style="background:var(--green)"></span>В гараже<span class="leg-val" id="analytics-utilization-garage-label">0 (0%)</span></div>
           </div>
         </div>
+        <div class="analytics-utilization-status" id="analytics-utilization-status" role="status" aria-live="polite">Войдите, чтобы увидеть загрузку автомобилей.</div>
       </div>
 
       <div class="sec-head"><div class="sec-title">Топ автомобилей по прибыли</div></div>
@@ -737,6 +759,22 @@
         </div>
         <div class="analytics-history-transactions" id="analytics-car-history-list"></div>
         <div class="finance-tx-status" id="analytics-car-history-status" role="status" aria-live="polite"></div>
+      </div>
+    </div>
+
+    <div class="fullscreen" id="fs-analytics-utilization">
+      <div class="fs-topbar">
+        <div class="fs-title-wrap"><div class="fs-title">Загрузка автомобилей</div><div class="fs-sub" id="analytics-utilization-detail-period"></div></div>
+        <button class="fs-back" type="button" aria-label="Назад к аналитике" onclick="closeAnalyticsUtilizationDetails()">←</button>
+      </div>
+      <div class="fs-body">
+        <div class="analytics-utilization-overview">
+          <div class="analytics-utilization-metric"><div class="analytics-utilization-metric-label">В аренде</div><div class="analytics-utilization-metric-value" id="analytics-detail-rented">0 дней</div></div>
+          <div class="analytics-utilization-metric"><div class="analytics-utilization-metric-label">В гараже</div><div class="analytics-utilization-metric-value" id="analytics-detail-garage">0 дней</div></div>
+          <div class="analytics-utilization-metric"><div class="analytics-utilization-metric-label">Общая загрузка</div><div class="analytics-utilization-metric-value" id="analytics-detail-percent">0%</div></div>
+        </div>
+        <div id="analytics-utilization-cars"></div>
+        <div class="finance-tx-status" id="analytics-utilization-detail-status" role="status" aria-live="polite"></div>
       </div>
     </div>
 
@@ -1020,6 +1058,9 @@ let analyticsTopCarsRequestId = 0;
 let analyticsSummaryRequestId = 0;
 let analyticsSelectedMonth = new Date(new Date().getFullYear(),new Date().getMonth(),1);
 let analyticsSelectedPeriod = 'month';
+let analyticsUtilizationRequestId = 0;
+let analyticsUtilizationData = null;
+let analyticsUtilizationPeriodKey = '';
 let analyticsHistoryCar = null;
 let analyticsHistoryPeriod = null;
 let analyticsHistoryTransactions = [];
@@ -1163,9 +1204,14 @@ function getAnalyticsPeriodRange(){
       ? Math.floor(analyticsSelectedMonth.getMonth()/3)*3
       : analyticsSelectedMonth.getMonth();
   const monthCount = analyticsSelectedPeriod === 'year' ? 12 : analyticsSelectedPeriod === 'quarter' ? 3 : 1;
+  const rangeStart = new Date(analyticsSelectedMonth.getFullYear(),startMonth,1);
+  const rangeEnd = new Date(analyticsSelectedMonth.getFullYear(),startMonth+monthCount,1);
+  const toCalendarDate = date => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
   return {
-    from:new Date(analyticsSelectedMonth.getFullYear(),startMonth,1).toISOString(),
-    to:new Date(analyticsSelectedMonth.getFullYear(),startMonth+monthCount,1).toISOString(),
+    from:rangeStart.toISOString(),
+    to:rangeEnd.toISOString(),
+    dateFrom:toCalendarDate(rangeStart),
+    dateTo:toCalendarDate(rangeEnd),
     period:analyticsSelectedPeriod,
     year:analyticsSelectedMonth.getFullYear(),
     month:analyticsSelectedMonth.getMonth()+1
@@ -1207,6 +1253,139 @@ function loadAnalyticsData(){
   updateAnalyticsPeriodUI();
   loadAnalyticsSummary();
   loadAnalyticsTopCars();
+  loadAnalyticsUtilization();
+}
+
+function getAnalyticsUtilizationPeriodKey(range=getAnalyticsPeriodRange()){
+  return `${AppState.uid}:${range.dateFrom}:${range.dateTo}`;
+}
+
+function renderAnalyticsUtilization(data){
+  const rentedDays = Number(data.rentedDays) || 0;
+  const garageDays = Number(data.garageDays) || 0;
+  const totalDays = Number(data.totalDays) || 0;
+  const utilizationPercent = totalDays ? Math.round(rentedDays / totalDays * 100) : 0;
+  const garagePercent = totalDays ? Math.round(garageDays / totalDays * 100) : 0;
+  const circumference = 238.76;
+  const rentedArc = circumference * utilizationPercent / 100;
+  const garageArc = circumference - rentedArc;
+  document.getElementById('analytics-utilization-rented-arc').setAttribute('stroke-dasharray',`${rentedArc} ${circumference}`);
+  document.getElementById('analytics-utilization-garage-arc').setAttribute('stroke-dasharray',`${garageArc} ${circumference}`);
+  document.getElementById('analytics-utilization-garage-arc').setAttribute('stroke-dashoffset',String(-rentedArc));
+  document.getElementById('analytics-utilization-total-days').textContent = String(totalDays);
+  document.getElementById('analytics-utilization-rented-label').textContent = `${rentedDays} (${utilizationPercent}%)`;
+  document.getElementById('analytics-utilization-garage-label').textContent = `${garageDays} (${garagePercent}%)`;
+  document.getElementById('analytics-utilization-status').textContent = totalDays ? '' : 'За выбранный период статусов автомобилей нет.';
+}
+
+async function loadAnalyticsUtilization(){
+  const requestId = ++analyticsUtilizationRequestId;
+  const status = document.getElementById('analytics-utilization-status');
+  const detailStatus = document.getElementById('analytics-utilization-detail-status');
+  const period = getAnalyticsPeriodRange();
+  const periodKey = getAnalyticsUtilizationPeriodKey(period);
+  if(!AppState.uid || !AppState.sessionToken){
+    analyticsUtilizationData = null;
+    analyticsUtilizationPeriodKey = '';
+    renderAnalyticsUtilization({rentedDays:0,garageDays:0,totalDays:0});
+    status.textContent = 'Войдите, чтобы увидеть загрузку автомобилей.';
+    detailStatus.textContent = 'Войдите, чтобы увидеть загрузку автомобилей.';
+    return;
+  }
+
+  status.textContent = 'Загружаем загрузку автомобилей…';
+  if(document.getElementById('fs-analytics-utilization').style.display === 'flex'){
+    detailStatus.textContent = 'Загружаем загрузку автомобилей…';
+  }
+  const sessionToken = AppState.sessionToken;
+  try{
+    const params = new URLSearchParams({from:period.dateFrom,to:period.dateTo});
+    const response = await fetch(`/api/partner/car-utilization?${params}`,{
+      headers:{Authorization:'Bearer ' + sessionToken}
+    });
+    const result = await response.json().catch(()=>({}));
+    if(requestId !== analyticsUtilizationRequestId || AppState.sessionToken !== sessionToken) return;
+    if(!(response.headers.get('content-type') || '').includes('application/json')){
+      throw new Error(`Сервис загрузки вернул не JSON (HTTP ${response.status}).`);
+    }
+    if(!response.ok) throw new Error(result.error || 'Не удалось загрузить загрузку автомобилей.');
+    if(!Array.isArray(result.cars) || !['rentedDays','garageDays','totalDays'].every(key=>Number.isSafeInteger(result[key]) && result[key]>=0)){
+      throw new Error('Сервис вернул некорректные данные загрузки.');
+    }
+    analyticsUtilizationData = result;
+    analyticsUtilizationPeriodKey = periodKey;
+    renderAnalyticsUtilization(result);
+    if(document.getElementById('fs-analytics-utilization').style.display === 'flex') renderAnalyticsUtilizationDetails(result);
+  }catch(error){
+    if(requestId !== analyticsUtilizationRequestId || AppState.sessionToken !== sessionToken) return;
+    console.error('[Analytics] Ошибка загрузки загрузки автомобилей:',error);
+    status.textContent = error.message || 'Не удалось загрузить загрузку автомобилей.';
+    detailStatus.textContent = error.message || 'Не удалось загрузить загрузку автомобилей.';
+  }
+}
+
+function renderAnalyticsUtilizationDetails(data){
+  const cars = Array.isArray(data.cars) ? data.cars : [];
+  const list = document.getElementById('analytics-utilization-cars');
+  const status = document.getElementById('analytics-utilization-detail-status');
+  list.replaceChildren();
+  document.getElementById('analytics-utilization-detail-period').textContent = document.getElementById('analytics-period-label').textContent.replace(/^📅\s*/, '');
+  document.getElementById('analytics-detail-rented').textContent = `${data.rentedDays} дн.`;
+  document.getElementById('analytics-detail-garage').textContent = `${data.garageDays} дн.`;
+  document.getElementById('analytics-detail-percent').textContent = `${data.utilizationPercent}%`;
+  cars.sort((first,second)=>second.utilizationPercent-first.utilizationPercent).forEach(car=>{
+    const card = document.createElement('div');
+    card.className = 'analytics-utilization-car';
+    const head = document.createElement('div');
+    head.className = 'analytics-utilization-car-head';
+    const identity = document.createElement('div');
+    const name = document.createElement('div');
+    name.className = 'analytics-utilization-car-name';
+    name.textContent = [car.marka,car.model].filter(Boolean).join(' ') || 'Автомобиль';
+    const plate = document.createElement('div');
+    plate.className = 'analytics-utilization-car-plate';
+    plate.textContent = car.gos_nomer || 'Госномер не указан';
+    identity.append(name,plate);
+    const percent = document.createElement('div');
+    percent.className = 'analytics-utilization-car-percent';
+    percent.textContent = `${Number(car.utilizationPercent)||0}%`;
+    head.append(identity,percent);
+    const bar = document.createElement('div');
+    bar.className = 'analytics-utilization-bar';
+    const rentedBar = document.createElement('div');
+    rentedBar.className = 'analytics-utilization-bar-rented';
+    rentedBar.style.width = `${Number(car.utilizationPercent)||0}%`;
+    const garageBar = document.createElement('div');
+    garageBar.className = 'analytics-utilization-bar-garage';
+    garageBar.style.width = `${100-(Number(car.utilizationPercent)||0)}%`;
+    bar.append(rentedBar,garageBar);
+    const days = document.createElement('div');
+    days.className = 'analytics-utilization-car-days';
+    const rentedDays = document.createElement('span');
+    rentedDays.textContent = `В аренде: ${car.rentedDays} дн.`;
+    const garageDays = document.createElement('span');
+    garageDays.textContent = `В гараже: ${car.garageDays} дн.`;
+    days.append(rentedDays,garageDays);
+    card.append(head,bar,days);
+    list.appendChild(card);
+  });
+  status.textContent = cars.length ? '' : 'Автомобилей за выбранный период нет.';
+}
+
+function openAnalyticsUtilizationDetails(){
+  document.getElementById('fs-analytics-utilization').style.display = 'flex';
+  const range = getAnalyticsPeriodRange();
+  if(analyticsUtilizationData && analyticsUtilizationPeriodKey === getAnalyticsUtilizationPeriodKey(range)){
+    renderAnalyticsUtilizationDetails(analyticsUtilizationData);
+    return;
+  }
+  document.getElementById('analytics-utilization-cars').replaceChildren();
+  document.getElementById('analytics-utilization-detail-status').textContent = 'Загружаем загрузку автомобилей…';
+  loadAnalyticsUtilization();
+}
+
+function closeAnalyticsUtilizationDetails(){
+  document.getElementById('fs-analytics-utilization').style.display = 'none';
 }
 
 async function loadAnalyticsSummary(){
@@ -1226,7 +1405,14 @@ async function loadAnalyticsSummary(){
   const sessionToken = AppState.sessionToken;
   status.textContent = 'Загружаем финансовые итоги…';
   try{
-    const params = new URLSearchParams(getAnalyticsPeriodRange());
+    const period = getAnalyticsPeriodRange();
+    const params = new URLSearchParams({
+      from:period.from,
+      to:period.to,
+      period:period.period,
+      year:String(period.year),
+      month:String(period.month)
+    });
     const response = await fetch(`/api/partner/finance-summary?${params}`,{
       headers:{Authorization:'Bearer ' + sessionToken}
     });
