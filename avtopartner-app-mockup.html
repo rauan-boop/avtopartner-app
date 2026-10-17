@@ -481,22 +481,22 @@
 
       <div class="hero" onclick="switchTab('finance')">
         <div class="hero-bars"><div style="height:14px"></div><div style="height:22px"></div><div style="height:30px"></div><div style="height:20px"></div></div>
-        <div class="hero-label">Общий приход</div>
-        <div class="hero-num">424 000 ₸</div>
-        <div class="hero-delta">↑ 11% за месяц</div>
+        <div class="hero-label">Прибыль</div>
+        <div class="hero-num" id="home-profit">—</div>
+        <div class="hero-delta" id="home-profit-period">За выбранный период</div>
         <div class="hero-ic">₸</div>
       </div>
 
       <div class="row2">
         <div class="mini-card" onclick="switchTab('finance')">
           <div class="mini-top"><span class="mini-label g">Приход денег</span><span class="mini-icon g">↓</span></div>
-          <div class="mini-num">424 000 ₸</div>
-          <div class="mini-delta" style="color:var(--green)">↑ 11% за месяц</div>
+          <div class="mini-num" id="home-income">—</div>
+          <div class="mini-delta" id="home-income-period" style="color:var(--green)">За выбранный период</div>
         </div>
         <div class="mini-card" onclick="switchTab('finance')">
           <div class="mini-top"><span class="mini-label r">Расходы</span><span class="mini-icon r">↑</span></div>
-          <div class="mini-num">78 500 ₸</div>
-          <div class="mini-delta" style="color:var(--red)">↑ 6% за месяц</div>
+          <div class="mini-num" id="home-expense">—</div>
+          <div class="mini-delta" id="home-expense-period" style="color:var(--red)">За выбранный период</div>
         </div>
       </div>
 
@@ -1149,6 +1149,10 @@ function switchTab(tab){
   });
   document.getElementById('screen-'+tab).scrollTop = 0;
   if(tab==='cars' && !partnerContractsLoaded && !partnerContractsLoading) loadPartnerContracts();
+  if(tab==='home'){
+    updateAnalyticsPeriodUI();
+    loadAnalyticsSummary();
+  }
   if(tab==='finance'){
     renderFinance();
     loadFinanceCars();
@@ -1400,6 +1404,9 @@ async function loadAnalyticsSummary(){
   incomeElement.textContent = '—';
   expenseElement.textContent = '—';
   profitElement.textContent = '—';
+  document.getElementById('home-income').textContent = '—';
+  document.getElementById('home-expense').textContent = '—';
+  document.getElementById('home-profit').textContent = '—';
   if(!AppState.uid || !AppState.sessionToken){
     status.textContent = 'Войдите, чтобы увидеть финансовые итоги.';
     return;
@@ -1430,7 +1437,15 @@ async function loadAnalyticsSummary(){
     }
     incomeElement.textContent = fmt(result.income);
     expenseElement.textContent = fmt(result.expense);
-    profitElement.textContent = fmt(result.income - result.expense);
+    const profit = result.income - result.expense;
+    profitElement.textContent = fmt(profit);
+    document.getElementById('home-income').textContent = fmt(result.income);
+    document.getElementById('home-expense').textContent = fmt(result.expense);
+    document.getElementById('home-profit').textContent = fmt(profit);
+    const periodLabel = document.getElementById('analytics-period-label').textContent.replace(/^📅\s*/, '').toLocaleLowerCase('ru-RU');
+    document.getElementById('home-profit-period').textContent = `За ${periodLabel}`;
+    document.getElementById('home-income-period').textContent = `За ${periodLabel}`;
+    document.getElementById('home-expense-period').textContent = `За ${periodLabel}`;
     status.textContent = '';
   }catch(error){
     if(requestId !== analyticsSummaryRequestId || AppState.sessionToken !== sessionToken) return;
@@ -1600,10 +1615,7 @@ async function loadAnalyticsTopCars(){
       const amount = document.createElement('div');
       amount.className = 'car-amt';
       amount.textContent = fmt(car.profit);
-      const share = document.createElement('div');
-      share.className = 'car-delta g';
-      share.textContent = `Доля ${ANALYTICS_CAR_PERCENT}% · заглушка`;
-      right.append(amount,share);
+      right.appendChild(amount);
       row.append(thumb,middle,right);
       list.appendChild(row);
     });
