@@ -152,8 +152,8 @@
   .expense-report-media{ display:grid; grid-template-columns:1fr; gap:10px;}
   .expense-report-media img,.expense-report-media video{ display:block; width:100%; max-height:420px; border-radius:12px; background:#111827; object-fit:contain;}
   .expense-report-media-empty{ padding:18px 12px; color:var(--text-lo); font-size:12px; text-align:center; background:var(--card); border:1px solid var(--line); border-radius:12px;}
-  .analytics-history-transactions .expense-report-row{ cursor:pointer;}
-  .analytics-history-transactions .expense-report-row:focus-visible{ outline:2px solid var(--blue2); outline-offset:2px;}
+  .analytics-history-transactions .expense-report-row,#tx-list .expense-report-row{ cursor:pointer;}
+  .analytics-history-transactions .expense-report-row:focus-visible,#tx-list .expense-report-row:focus-visible{ outline:2px solid var(--blue2); outline-offset:2px;}
 
   .sum-card{ background:var(--card); border:1px solid var(--line); border-radius:16px; padding:15px 16px; display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; cursor:pointer; box-shadow:0 5px 14px rgba(31,41,55,.05);}
   .sum-label{ font-size:12px; font-weight:600;}
@@ -1829,10 +1829,10 @@ function renderExpenseReportMedia(target,value,type){
   });
 }
 
-function openAnalyticsExpenseReport(transaction){
-  if(!analyticsHistoryCar) return;
+function openAnalyticsExpenseReport(transaction,carOverride = null){
+  const car = carOverride || analyticsHistoryCar;
+  if(!car || car.id == null) return;
   const requestId = ++expenseReportRequestId;
-  const car = analyticsHistoryCar;
   const carName = [car.marka,car.model].filter(Boolean).join(' ') || 'Автомобиль';
   const sessionToken = AppState.sessionToken;
   document.getElementById('expense-report-car-title').textContent = carName;
@@ -2244,7 +2244,22 @@ async function loadFinanceTransactions(reset = false){
     if(!Array.isArray(result.transactions) || !Number.isSafeInteger(result.count) || result.count < 0){
       throw new Error('Сервис вернул некорректные данные об операциях.');
     }
-    result.transactions.forEach(transaction=>appendFinanceTransaction(transaction));
+    result.transactions.forEach(transaction=>appendFinanceTransaction(
+      transaction,
+      document.getElementById('tx-list'),
+      true,
+      transaction.type === false && transaction.id_car != null
+        ? ()=>{
+          const details = getFinanceCarDetails(transaction.data_car);
+          openAnalyticsExpenseReport(transaction,{
+            id:transaction.id_car,
+            marka:details.description,
+            model:'',
+            gos_nomer:details.plate
+          });
+        }
+        : null
+    ));
     financeTransactionsOffset += result.transactions.length;
     financeTransactionsCount = result.count;
     financeTransactionsHasMore = financeTransactionsOffset < financeTransactionsCount && result.transactions.length > 0;
