@@ -2757,10 +2757,8 @@ function renderFines(error = ''){
     card.appendChild(head);
     [
       ['Дата протокола',fine.date_protokol ? formatFinanceTransactionDate(fine.date_protokol,false) : '—'],
-      ['Марка',car.brand || car.description || '—'],
-      ['Модель',car.model || '—'],
-      ['Гос номер',fine.number_avto || car.plate || '—'],
-      ['Статус',fine.status || '—']
+      ['Авто',car.brand || car.description || '—'],
+      ['Гос номер',fine.number_avto || car.plate || '—']
     ].forEach(([label,value])=>{
       const row = document.createElement('div');
       row.className = 'fine-row';
