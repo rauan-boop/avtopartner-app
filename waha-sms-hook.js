@@ -1274,6 +1274,31 @@ app.get('/api/partner/car-expense-reports', async (req, res) => {
   }
 });
 
+app.get('/api/partner/fines', async (req, res) => {
+  const userId = getSessionUserId(req);
+  if (!userId) return res.status(401).json({ error: 'Сессия истекла. Войдите в аккаунт повторно' });
+
+  try {
+    const response = await axios.get(`${supabaseUrl}/rest/v1/shtraf_klientov`, {
+      params: {
+        id_hozyain_avto: `eq.${userId}`,
+        select: 'id,number_protokol,date_protokol,data_avto,number_avto,status_oplaty,status_perevoda,status',
+        order: 'date_protokol.desc.nullslast',
+        limit: 1000
+      },
+      headers: serviceHeaders(),
+      timeout: 10000
+    });
+    return res.json({ fines: response.data || [] });
+  } catch (error) {
+    console.error('[Fines] Ошибка загрузки штрафов:', {
+      status: error.response?.status || null,
+      details: error.response?.data || error.message
+    });
+    return res.status(502).json({ error: 'Не удалось загрузить штрафы' });
+  }
+});
+
 app.get('/api/partner/sublease-cars', async (req, res) => {
   const userId = getSessionUserId(req);
   if (!userId) return res.status(401).json({ error: 'Сессия истекла. Войдите в аккаунт повторно' });

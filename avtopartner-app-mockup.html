@@ -375,6 +375,22 @@
   .fin-v{ font-size:14.5px; font-weight:800; color:var(--text-hi); margin-top:3px;}
   .fin-s{ font-size:9.5px; color:var(--text-lo);}
 
+  .fines-tabs{ display:flex; gap:8px; margin-bottom:14px;}
+  .fines-tab{ flex:1; padding:10px 4px; border:1px solid transparent; border-radius:12px; font-size:12px; font-weight:700; cursor:pointer; opacity:.65; transition:opacity .15s, box-shadow .15s;}
+  .fines-tab.active{ opacity:1; box-shadow:0 0 0 2px currentColor inset;}
+  .fines-tab.new{ background:#FDE2E2; color:#B91C1C;}
+  .fines-tab.work{ background:#DBEAFE; color:#1D4ED8;}
+  .fines-tab.closed{ background:#D1FAE5; color:#047857;}
+  .fine-card{ background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; margin-bottom:10px; box-shadow:0 4px 12px rgba(31,41,55,.04);}
+  .fine-head{ display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:8px;}
+  .fine-number{ color:var(--text-hi); font-size:14px; font-weight:800; overflow-wrap:anywhere;}
+  .fine-badge{ flex-shrink:0; padding:4px 10px; border-radius:20px; font-size:11px; font-weight:700;}
+  .fine-badge.new{ background:#FDE2E2; color:#B91C1C;}
+  .fine-badge.work{ background:#DBEAFE; color:#1D4ED8;}
+  .fine-badge.closed{ background:#D1FAE5; color:#047857;}
+  .fine-row{ display:flex; justify-content:space-between; gap:10px; padding:4px 0; font-size:12px;}
+  .fine-row .l{ color:var(--text-lo);}
+  .fine-row .v{ color:var(--text-hi); font-weight:600; text-align:right; overflow-wrap:anywhere;}
   .tabbar{ display:flex; border-bottom:1px solid var(--line); margin-bottom:14px;}
   .tabbtn{ flex:1; text-align:center; padding:10px 4px; font-size:12px; font-weight:600; color:var(--text-lo); cursor:pointer; border-bottom:2px solid transparent;}
   .tabbtn.active{ color:var(--blue2); border-color:var(--blue2);}
@@ -675,7 +691,7 @@
           <div><div class="quick-name">Безопасность</div><div class="quick-sub">Телефон, почта и быстрый вход</div></div>
           <div class="quick-chev">›</div>
         </div>
-        <div class="quick-row" onclick="showToast('Раздел «Штрафы» скоро появится')">
+        <div class="quick-row" onclick="openFinesPage()">
           <div class="quick-icon" style="background:var(--red-soft);">🚨</div>
           <div><div class="quick-name">Штрафы</div><div class="quick-sub">Сведения по штрафам</div></div>
           <div class="quick-chev">›</div>
@@ -847,6 +863,24 @@
         </button>
       </div>
       <div class="fs-body" id="company-info-content" aria-live="polite"></div>
+    </div>
+
+    <div class="fullscreen" id="fs-fines" aria-label="Штрафы">
+      <div class="fs-topbar">
+        <div class="fs-title-wrap"><div class="fs-title">Штрафы</div></div>
+        <button class="fs-back" type="button" aria-label="Назад" title="Назад" onclick="closeFinesPage()">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"></path><path d="m12 19-7-7 7-7"></path></svg>
+        </button>
+      </div>
+      <div class="fs-body">
+        <div class="fines-tabs" id="fines-tabs">
+          <button class="fines-tab new active" type="button" data-status="Новый" onclick="setFinesFilter('Новый')">Новые</button>
+          <button class="fines-tab work" type="button" data-status="В работе" onclick="setFinesFilter('В работе')">В работе</button>
+          <button class="fines-tab closed" type="button" data-status="Закрыт" onclick="setFinesFilter('Закрыт')">Закрыты</button>
+        </div>
+        <div id="fines-list"></div>
+        <div class="finance-tx-status" id="fines-status" role="status" aria-live="polite"></div>
+      </div>
     </div>
 
     <div class="fullscreen" id="fs-support" aria-label="Техническая поддержка">
@@ -2129,7 +2163,7 @@ function getFinanceCarDetails(value){
   const model = getValue(['model','modelavto','модель']);
   const plate = getValue(['gosnomer','nomer','licenseplate','plate','госномер','госномеравто']);
   const description = [brand,model].filter(Boolean).join(' ') || getValue(['name','carname','avto','автомобиль']);
-  return {description:description || 'Автомобиль', plate};
+  return {description:description || 'Автомобиль', plate, brand, model};
 }
 
 function formatFinanceTransactionDate(value,includeTime = true){
@@ -2653,6 +2687,122 @@ function openCompanyPage(){
 function closeCompanyPage(){
   document.getElementById('fs-company').style.display = 'none';
   switchTab(companyReturnTab);
+}
+
+let finesReturnTab = 'profile';
+let finesData = [];
+let finesFilter = 'Новый';
+let finesRequestId = 0;
+const FINE_STATUS_CLASSES = {'Новый':'new','В работе':'work','Закрыт':'closed'};
+
+function openFinesPage(){
+  finesReturnTab = ['home','cars','finance','analytics','profile'].find(tab =>
+    document.getElementById(`screen-${tab}`).style.display !== 'none'
+  ) || 'profile';
+  finesFilter = 'Новый';
+  document.getElementById('fs-fines').style.display = 'flex';
+  updateFinesTabs();
+  loadFines();
+}
+
+function closeFinesPage(){
+  finesRequestId++;
+  document.getElementById('fs-fines').style.display = 'none';
+  switchTab(finesReturnTab);
+}
+
+function updateFinesTabs(){
+  document.querySelectorAll('#fines-tabs .fines-tab').forEach(tab=>tab.classList.toggle('active',tab.dataset.status === finesFilter));
+}
+
+function setFinesFilter(status){
+  finesFilter = status;
+  updateFinesTabs();
+  renderFines();
+}
+
+function renderFines(error = ''){
+  const list = document.getElementById('fines-list');
+  const status = document.getElementById('fines-status');
+  list.replaceChildren();
+  status.replaceChildren();
+  if(error){
+    status.appendChild(document.createTextNode(error + ' '));
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'security-link-button';
+    button.textContent = 'Повторить';
+    button.addEventListener('click',loadFines);
+    status.appendChild(button);
+    return;
+  }
+  const fines = finesData.filter(fine=>String(fine.status || '').trim() === finesFilter);
+  if(!fines.length){
+    status.textContent = 'Штрафов с таким статусом нет.';
+    return;
+  }
+  fines.forEach(fine=>{
+    const car = getFinanceCarDetails(fine.data_avto);
+    const card = document.createElement('div');
+    card.className = 'fine-card';
+    const head = document.createElement('div');
+    head.className = 'fine-head';
+    const number = document.createElement('div');
+    number.className = 'fine-number';
+    number.textContent = `Протокол № ${fine.number_protokol || '—'}`;
+    const badge = document.createElement('div');
+    badge.className = `fine-badge ${FINE_STATUS_CLASSES[String(fine.status).trim()] || 'new'}`;
+    badge.textContent = fine.status || '—';
+    head.append(number,badge);
+    card.appendChild(head);
+    [
+      ['Дата протокола',fine.date_protokol ? formatFinanceTransactionDate(fine.date_protokol,false) : '—'],
+      ['Марка',car.brand || car.description || '—'],
+      ['Модель',car.model || '—'],
+      ['Гос номер',fine.number_avto || car.plate || '—'],
+      ['Статус',fine.status || '—']
+    ].forEach(([label,value])=>{
+      const row = document.createElement('div');
+      row.className = 'fine-row';
+      const l = document.createElement('span');
+      l.className = 'l';
+      l.textContent = label;
+      const v = document.createElement('span');
+      v.className = 'v';
+      v.textContent = value;
+      row.append(l,v);
+      card.appendChild(row);
+    });
+    list.appendChild(card);
+  });
+}
+
+async function loadFines(){
+  const status = document.getElementById('fines-status');
+  document.getElementById('fines-list').replaceChildren();
+  if(!AppState.sessionToken){
+    status.textContent = 'Войдите, чтобы увидеть штрафы.';
+    return;
+  }
+  const requestId = ++finesRequestId;
+  const sessionToken = AppState.sessionToken;
+  status.textContent = 'Загружаем штрафы…';
+  try{
+    const response = await fetch('/api/partner/fines',{headers:{Authorization:'Bearer ' + sessionToken}});
+    const result = await response.json().catch(()=>({}));
+    if(requestId !== finesRequestId || AppState.sessionToken !== sessionToken) return;
+    if(!(response.headers.get('content-type') || '').includes('application/json')){
+      throw new Error(`Сервис штрафов вернул не JSON (HTTP ${response.status}).`);
+    }
+    if(!response.ok) throw new Error(result.error || 'Не удалось загрузить штрафы.');
+    if(!Array.isArray(result.fines)) throw new Error('Сервис вернул некорректные данные о штрафах.');
+    finesData = result.fines;
+    renderFines();
+  }catch(error){
+    if(requestId !== finesRequestId || AppState.sessionToken !== sessionToken) return;
+    console.error('[Fines] Ошибка загрузки штрафов:',error);
+    renderFines(error.message || 'Не удалось загрузить штрафы.');
+  }
 }
 
 function openSupportPage(){
