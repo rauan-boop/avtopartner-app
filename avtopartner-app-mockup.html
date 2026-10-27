@@ -121,6 +121,7 @@
   .analytics-operator{ color:var(--text-lo); font-size:18px; font-weight:700; text-align:center;}
   .analytics-history-period{ margin:4px 0 14px; color:var(--text-lo); font-size:12px; font-weight:600; text-align:center;}
   .analytics-history-transactions .rental-tx-car{ display:none;}
+  .analytics-history-transactions.all-cars .rental-tx-car{ display:block;}
   .analytics-history-empty{ padding:22px 12px; color:var(--text-lo); font-size:13px; text-align:center;}
   .analytics-utilization-card{ cursor:pointer; transition:transform .15s;}
   .analytics-utilization-card:active{ transform:scale(.99);}
@@ -552,7 +553,7 @@
         <div><div class="sum-label g">Доходы</div><div class="sum-num" id="fin-income">424 000 ₸</div><div class="sum-delta g" id="fin-income-delta">↑ 11% к апрелю</div></div>
         <div class="sum-icon g">↓</div>
       </div>
-      <div class="sum-card" onclick="showToast('Детализация расходов')">
+      <div class="sum-card" role="button" tabindex="0" aria-label="Открыть детализацию расходов" onclick="openFinanceExpenseHistory()" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openFinanceExpenseHistory();}">
         <div><div class="sum-label r">Расходы</div><div class="sum-num" id="fin-expense">78 500 ₸</div><div class="sum-delta r" id="fin-expense-delta">↑ 6% к апрелю</div></div>
         <div class="sum-icon r">↑</div>
       </div>
@@ -1628,6 +1629,7 @@ async function loadAnalyticsTopCars(){
 }
 
 function openAnalyticsCarHistory(car){
+  document.getElementById('analytics-car-history-list').classList.remove('all-cars');
   analyticsHistoryCar = car;
   analyticsHistoryPeriod = getAnalyticsPeriodRange();
   analyticsHistoryFilter = 'all';
@@ -1671,7 +1673,9 @@ function renderAnalyticsCarHistory(){
     transaction,
     list,
     false,
-    transaction.type === false ? ()=>openAnalyticsExpenseReport(transaction) : null
+    transaction.type === false
+      ? ()=>openAnalyticsExpenseReport(transaction,analyticsHistoryCar && analyticsHistoryCar.id == null ? getFinanceTransactionCar(transaction) : null)
+      : null
   ));
 
   if(analyticsHistoryLoading){
@@ -1739,7 +1743,7 @@ async function loadAnalyticsCarHistory(reset = false){
       period:analyticsHistoryPeriod.period,
       year:String(analyticsHistoryPeriod.year),
       month:String(analyticsHistoryPeriod.month),
-      car_id:String(analyticsHistoryCar.id)
+      ...(analyticsHistoryCar.id != null ? {car_id:String(analyticsHistoryCar.id)} : {})
     });
     const response = await fetch(`/api/partner/rent-payments?${params}`,{
       headers:{Authorization:'Bearer ' + sessionToken}
@@ -1827,6 +1831,37 @@ function renderExpenseReportMedia(target,value,type){
     }
     target.appendChild(media);
   });
+}
+
+function getFinanceTransactionCar(transaction){
+  if(transaction.id_car == null) return null;
+  const details = getFinanceCarDetails(transaction.data_car);
+  return {id:transaction.id_car,marka:details.description,model:'',gos_nomer:details.plate};
+}
+
+function openFinanceExpenseHistory(){
+  const chip = document.querySelector('#car-chip-row .chip.active');
+  const allCars = financeSelectedCarId === null;
+  analyticsHistoryCar = {
+    id:allCars ? null : financeSelectedCarId,
+    marka:allCars ? 'Расходы' : (chip?.textContent || 'Автомобиль'),
+    model:'',
+    gos_nomer:allCars ? 'Все машины' : 'Расходы'
+  };
+  analyticsHistoryPeriod = financeTransactionsPeriod;
+  analyticsHistoryFilter = 'expense';
+  analyticsHistoryTransactions = [];
+  analyticsHistoryOffset = 0;
+  analyticsHistoryCount = 0;
+  analyticsHistoryHasMore = false;
+  analyticsHistoryLoading = false;
+  document.getElementById('analytics-car-title').textContent = analyticsHistoryCar.marka;
+  document.getElementById('analytics-car-plate').textContent = analyticsHistoryCar.gos_nomer;
+  document.getElementById('analytics-car-period').textContent = `История за ${getFinancePeriodLabel()}`;
+  document.getElementById('analytics-car-history-list').classList.toggle('all-cars',allCars);
+  document.querySelectorAll('#analytics-car-history-tabs .tabbtn').forEach(button=>button.classList.toggle('active',button.dataset.filter === 'expense'));
+  document.getElementById('fs-analytics-car').style.display = 'flex';
+  loadAnalyticsCarHistory(true);
 }
 
 function openAnalyticsExpenseReport(transaction,carOverride = null){
